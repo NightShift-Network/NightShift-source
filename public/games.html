@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101110">
+  <title>Games · NightShift</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='12' fill='%23b9f37c'/%3E%3Cpath d='M25 8a13 13 0 1 0 7 23A15 15 0 0 1 25 8Z' fill='%23101110'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { color-scheme: dark; --bg: #101110; --panel: #141614; --line: #2a2d29; --text: #e9ece6; --muted: #858a83; --lime: #b9f37c; --font: 'DM Sans', sans-serif; --mono: 'DM Mono', monospace; font-family: var(--font); background: var(--bg); color: var(--text); }
+    * { box-sizing: border-box; }
+    body { min-width: 320px; min-height: 100vh; margin: 0; background: radial-gradient(ellipse at 50% -15%, #1c211b 0, var(--bg) 58%); }
+    .topbar { height: 58px; display: flex; align-items: center; gap: 14px; padding: 0 clamp(16px, 3vw, 32px); border-bottom: 1px solid var(--line); background: #101210cc; }
+    .brand { display: flex; align-items: center; gap: 9px; color: var(--text); text-decoration: none; font-size: 15px; font-weight: 700; letter-spacing: -.45px; }
+    .brand-mark { width: 25px; height: 25px; display: grid; place-items: center; border-radius: 8px; background: var(--lime); }
+    .brand-mark svg { width: 16px; height: 16px; fill: #171a16; }
+    .brand-dot { color: var(--lime); }
+    .divider { width: 1px; height: 18px; background: var(--line); }
+    .back { color: #a1a69e; text-decoration: none; font-size: 11px; transition: color .15s; }
+    .back:hover { color: var(--lime); }
+    .session { margin-left: auto; display: flex; align-items: center; gap: 8px; color: #92988f; font: 9px var(--mono); letter-spacing: .08em; }
+    .session-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--lime); box-shadow: 0 0 9px #b9f37c88; }
+    main { width: min(1440px, 100%); margin: 0 auto; padding: 30px clamp(16px, 3vw, 34px) 22px; }
+    .heading { margin-bottom: 10px; }
+    .kicker { color: var(--lime); font: 9px var(--mono); letter-spacing: .16em; }
+    h1 { margin: 7px 0 3px; font-size: clamp(25px, 3.5vw, 34px); font-weight: 500; letter-spacing: -.05em; }
+    .heading p { margin: 0; color: #858a83; font-size: 12px; }
+    .games-toolbar { display: flex; align-items: center; gap: 12px; margin: 20px 0 14px; }
+    .search { width: min(400px, 100%); height: 38px; display: flex; align-items: center; gap: 9px; padding: 0 12px; border: 1px solid #30352e; border-radius: 7px; background: #151815; color: #8d9589; }
+    .search:focus-within { border-color: #667750; }
+    .search span { font-size: 18px; }
+    .search input { width: 100%; border: 0; outline: 0; background: transparent; color: var(--text); font: 12px var(--font); }
+    #status { min-height: 17px; margin: 12px 0; color: #aab1a4; font: 10px var(--mono); }
+    #games-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 13px; }
+    .game-card { min-width: 0; overflow: hidden; padding: 0; border: 1px solid #292e28; border-radius: 8px; background: #151815; color: var(--text); text-align: left; cursor: pointer; transition: border-color .16s, transform .16s, background .16s; }
+    .game-card:hover { transform: translateY(-2px); border-color: #596b49; background: #191d18; }
+    .game-art { position: relative; display: grid; place-items: center; aspect-ratio: 1.45; overflow: hidden; background: linear-gradient(145deg, #202620, #121512); }
+    .game-art img { width: 100%; height: 100%; object-fit: cover; }
+    .game-fallback { color: #82916f; font-size: 31px; }
+    .game-details { display: flex; flex-direction: column; gap: 4px; padding: 10px 11px 12px; }
+    .game-details strong { overflow: hidden; color: #e6eae2; font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+    .game-details small { color: #858c82; font: 9px var(--mono); }
+    .games-pagination { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 22px 0; color: #92998d; font: 10px var(--mono); }
+    .games-pagination button,#retry { padding: 8px 12px; border: 1px solid #343a31; border-radius: 6px; background: #191c19; color: #dce2d6; font: 11px var(--font); cursor: pointer; }
+    .games-pagination button:hover,#retry:hover { border-color: #667750; color: var(--lime); }
+    .games-pagination button:disabled { opacity: .4; cursor: default; }
+    #retry { display: block; margin: 12px 0; }
+    .empty { grid-column: 1/-1; padding: 28px; color: #8f968a; text-align: center; font-size: 12px; }
+    .player { position: fixed; inset: 0; z-index: 10000; display: flex; flex-direction: column; background: #080908; }
+    .player[hidden] { display: none; }
+    .player-bar { height: 48px; flex: none; display: flex; align-items: center; gap: 14px; padding: 0 16px; border-bottom: 1px solid var(--line); background: #111310; }
+    .player-bar button,.player-bar a { border: 0; background: transparent; color: #aab49f; font: 11px var(--font); text-decoration: none; cursor: pointer; }
+    .player-bar button:hover,.player-bar a:hover { color: var(--lime); }
+    .player-bar strong { flex: 1; overflow: hidden; color: var(--text); text-align: center; font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+    .player iframe { width: 100%; height: 100%; flex: 1; border: 0; background: #000; }
+    footer { display: flex; justify-content: space-between; gap: 12px; padding-top: 15px; border-top: 1px solid #242723; color: #71776e; font: 9px var(--mono); letter-spacing: .06em; }
+    footer span:last-child { color: #8f968a; }
+    [hidden] { display: none !important; }
+    @media (max-width: 520px) { .session { font-size: 8px; } main { padding-top: 23px; } footer { font-size: 8px; } #games-grid { grid-template-columns: repeat(auto-fill, minmax(125px, 1fr)); gap: 9px; } }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="NightShift home"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M15.7 2.4a9.6 9.6 0 1 0 5.9 16.8A11.1 11.1 0 0 1 15.7 2.4Z"/></svg></span><span>nightshift<span class="brand-dot">.</span></span></a>
+    <span class="divider" aria-hidden="true"></span>
+    <a class="back" href="/">← Back to Proxy</a>
+    <div class="session"><span class="session-dot" aria-hidden="true"></span><span>NIGHTSHIFT ARCADE</span></div>
+  </header>
+  <main>
+    <div class="heading"><span class="kicker">GAME LIBRARY</span><h1>Games</h1><p>Pick a game and settle in.</p></div>
+    <div class="games-toolbar"><label class="search"><span aria-hidden="true">⌕</span><input id="game-search" type="search" placeholder="Search games" autocomplete="off"></label></div>
+    <p id="status" role="status" aria-live="polite">Connecting to the game library…</p>
+    <div id="games-grid" aria-live="polite"></div>
+    <nav id="games-pagination" class="games-pagination" aria-label="Game pages" hidden></nav>
+    <button id="retry" type="button" hidden>Try again</button>
+    <footer><span>BROWSE FREELY</span><span>POWERED BY LUMINSDK</span></footer>
+  </main>
+  <section id="game-player" class="player" aria-label="Game player" hidden>
+    <div class="player-bar"><button id="player-back" type="button">← All games</button><strong id="player-title">Game</strong><span aria-hidden="true"></span></div>
+    <iframe id="player-frame" title="Game" allow="autoplay; fullscreen; gamepad; pointer-lock" allowfullscreen></iframe>
+  </section>
+  <script src="https://cdn.jsdelivr.net/gh/luminsdk/script@latest/lumin.min.js"></script>
+  <script>
+    const status = document.querySelector("#status");
+    const retry = document.querySelector("#retry");
+    const searchInput = document.querySelector("#game-search");
+    const gamesGrid = document.querySelector("#games-grid");
+    const pagination = document.querySelector("#games-pagination");
+    const player = document.querySelector("#game-player");
+    const playerFrame = document.querySelector("#player-frame");
+    const playerTitle = document.querySelector("#player-title");
+    let initPromise = null;
+    let sdkReady = false;
+    let currentPage = 1;
+    let totalPages = 1;
+    let requestId = 0;
+    let searchTimer;
+    let imageUrls = [];
+
+    function reportError(error) {
+      console.error("LuminSDK error:", error);
+      status.textContent = `Games could not be loaded: ${error?.message || error || "Check your connection and try again."}`;
+      retry.hidden = false;
+    }
+
+    async function initialize(restart = false) {
+      if (initPromise) return initPromise;
+      if (restart) {
+        try { window.Lumin?.destroy(); } catch (error) { console.warn("LuminSDK cleanup failed:", error); }
+        sdkReady = false;
+      }
+      retry.hidden = true;
+      status.textContent = "Connecting to the game library…";
+      initPromise = (async () => {
+        try {
+          if (!window.Lumin) throw new Error("The LuminSDK script could not be loaded from jsDelivr.");
+          let initError = null;
+          await window.Lumin.init({
+            headless: true,
+            onReady: () => console.log("LuminSDK is ready"),
+            onError: error => {
+              initError = error instanceof Error ? error : new Error(String(error || "LuminSDK initialization failed."));
+              reportError(initError);
+            },
+          });
+          if (initError) throw initError;
+          sdkReady = true;
+          await loadPage(1);
+        } catch (error) {
+          reportError(error);
+          initPromise = null;
+        }
+      })();
+      return initPromise;
+    }
+
+    function renderPagination() {
+      pagination.replaceChildren();
+      pagination.hidden = totalPages <= 1;
+      if (pagination.hidden) return;
+      const previous = document.createElement("button");
+      previous.type = "button";
+      previous.textContent = "Previous";
+      previous.disabled = currentPage <= 1;
+      previous.addEventListener("click", () => loadPage(currentPage - 1));
+      const label = document.createElement("span");
+      label.textContent = `Page ${currentPage} of ${totalPages}`;
+      const next = document.createElement("button");
+      next.type = "button";
+      next.textContent = "Next";
+      next.disabled = currentPage >= totalPages;
+      next.addEventListener("click", () => loadPage(currentPage + 1));
+      pagination.append(previous, label, next);
+    }
+
+    async function loadPage(page) {
+      const thisRequest = ++requestId;
+      status.hidden = false;
+      status.textContent = "Loading games…";
+      retry.hidden = true;
+      pagination.hidden = true;
+      try {
+        const result = await window.Lumin.getGames({ page, limit: 24, q: searchInput.value.trim() });
+        const games = result.games || [];
+        const cards = await Promise.all(games.map(async game => {
+          let imageUrl = "";
+          if (game.image_token) {
+            try { imageUrl = await window.Lumin.getImageUrl(game.image_token); }
+            catch (error) { console.warn(`Could not load artwork for ${game.name}:`, error); }
+          }
+          return { game, imageUrl };
+        }));
+        if (thisRequest !== requestId) {
+          cards.forEach(({ imageUrl }) => { if (imageUrl.startsWith("blob:")) URL.revokeObjectURL(imageUrl); });
+          return;
+        }
+        imageUrls.forEach(URL.revokeObjectURL);
+        imageUrls = cards.map(({ imageUrl }) => imageUrl).filter(url => url.startsWith("blob:"));
+        gamesGrid.replaceChildren();
+        currentPage = Number(result.page) || page;
+        totalPages = Math.max(1, Number(result.pages) || 1);
+        cards.forEach(({ game, imageUrl }) => {
+          const card = document.createElement("button");
+          card.type = "button";
+          card.className = "game-card";
+          card.setAttribute("aria-label", `Play ${game.name || "game"}`);
+          const art = document.createElement("span");
+          art.className = "game-art";
+          if (imageUrl) {
+            const image = document.createElement("img");
+            image.src = imageUrl;
+            image.alt = "";
+            image.loading = "lazy";
+            image.addEventListener("error", () => { image.remove(); art.textContent = "✳"; art.classList.add("game-fallback"); }, { once: true });
+            art.append(image);
+          } else {
+            art.textContent = "✳";
+            art.classList.add("game-fallback");
+          }
+          const details = document.createElement("span");
+          details.className = "game-details";
+          const title = document.createElement("strong");
+          title.textContent = game.name || "Untitled game";
+          details.append(title);
+          if (game.category) {
+            const category = document.createElement("small");
+            category.textContent = game.category;
+            details.append(category);
+          }
+          card.append(art, details);
+          card.addEventListener("click", () => playGame(game));
+          gamesGrid.append(card);
+        });
+        if (!cards.length) {
+          const empty = document.createElement("p");
+          empty.className = "empty";
+          empty.textContent = "No games found.";
+          gamesGrid.append(empty);
+        }
+        status.textContent = `${Number(result.total) || cards.length} games in the library`;
+        renderPagination();
+      } catch (error) {
+        if (thisRequest === requestId) reportError(error);
+      }
+    }
+
+    async function playGame(game) {
+      status.hidden = false;
+      status.textContent = `Opening ${game.name || "game"}…`;
+      try {
+        const { url, meta } = await window.Lumin.getGameUrl(game.id);
+        playerTitle.textContent = meta?.name || game.name || "Game";
+        playerFrame.src = url;
+        player.hidden = false;
+        status.hidden = true;
+      } catch (error) {
+        reportError(error);
+      }
+    }
+
+    function closePlayer() {
+      playerFrame.src = "about:blank";
+      player.hidden = true;
+      status.textContent = `${gamesGrid.querySelectorAll(".game-card").length} games shown`;
+      status.hidden = false;
+    }
+
+    searchInput.addEventListener("input", () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => { if (sdkReady) loadPage(1); }, 250);
+    });
+    retry.addEventListener("click", () => {
+      if (sdkReady) loadPage(currentPage);
+      else initialize(true);
+    });
+    document.querySelector("#player-back").addEventListener("click", closePlayer);
+    document.addEventListener("keydown", event => { if (event.key === "Escape" && !player.hidden) closePlayer(); });
+    window.addEventListener("beforeunload", () => imageUrls.forEach(URL.revokeObjectURL));
+    initialize();
+  </script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LuminSDK Connection Check</title>
+  <style>
+    html, body { min-height: 100%; margin: 0; background: #0a0a0a; color: #ddd; font: 14px system-ui, sans-serif; }
+    body { padding: 16px; box-sizing: border-box; }
+    #status { margin: 0 auto 12px; max-width: 1200px; color: #aaa; }
+    #games { min-height: 80vh; }
+  </style>
+</head>
+<body>
+  <p id="status" role="status">Initializing LuminSDK. Open DevTools → Network and filter Fetch/XHR if this does not finish.</p>
+  <div id="games"></div>
+  <script src="https://cdn.jsdelivr.net/gh/luminsdk/script@latest/lumin.min.js"></script>
+  <script>
+    const status = document.querySelector("#status");
+    if (!window.Lumin) {
+      status.textContent = "The LuminSDK script did not load. Check the Network panel for the jsDelivr request.";
+    } else {
+      Lumin.init({
+        container: "#games",
+        theme: "dark",
+        onReady: () => { status.textContent = "LuminSDK connected."; },
+        onError: error => {
+          status.textContent = `LuminSDK error: ${error?.message || error}`;
+          console.error("LuminSDK error:", error);
+        },
+      }).catch(error => {
+        status.textContent = `LuminSDK init failed: ${error?.message || error}`;
+        console.error("LuminSDK init failed:", error);
+      });
+    }
+  </script>
+</body>
+</html>

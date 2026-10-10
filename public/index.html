@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101110">
+  <title>Nightshift — Private browsing</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='12' fill='%23b9f37c'/%3E%3Cpath d='M25 8a13 13 0 1 0 7 23A15 15 0 0 1 25 8Z' fill='%23101110'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="browser">
+    <header class="topbar">
+      <a class="brand" href="#home" aria-label="Nightshift home">
+        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M15.7 2.4a9.6 9.6 0 1 0 5.9 16.8A11.1 11.1 0 0 1 15.7 2.4Z"/></svg></span>
+        <span>nightshift<span class="brand-dot">.</span></span>
+      </a>
+      <div class="top-meta"><span class="status-dot"></span><span>NIGHTSHIFT SESSION</span><span class="meta-divider"></span><span id="clock">--:--</span></div>
+      <button class="icon-button settings-button" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24"><path d="M12 8.25a3.75 3.75 0 1 0 0 7.5 3.75 3.75 0 0 0 0-7.5Z"/><path d="m19.4 15 .05.05a1.6 1.6 0 0 1-2.26 2.26l-.05-.05a1.6 1.6 0 0 0-2.73 1.13v.16a1.6 1.6 0 0 1-3.2 0v-.08a1.6 1.6 0 0 0-2.73-1.13l-.05.05a1.6 1.6 0 1 1-2.26-2.26l.05-.05a1.6 1.6 0 0 0-1.13-2.73h-.16a1.6 1.6 0 0 1 0-3.2h.08a1.6 1.6 0 0 0 1.13-2.73l-.05-.05a1.6 1.6 0 1 1 2.26-2.26l.05.05a1.6 1.6 0 0 0 2.73-1.13v-.16a1.6 1.6 0 0 1 3.2 0v.08a1.6 1.6 0 0 0 2.73 1.13l.05-.05a1.6 1.6 0 1 1 2.26 2.26l-.05.05a1.6 1.6 0 0 0 1.13 2.73h.16a1.6 1.6 0 0 1 0 3.2h-.08A1.6 1.6 0 0 0 19.4 15Z"/></svg></button>
+    </header>
+
+    <div class="browser-shell">
+      <aside class="side-rail" aria-label="Sidebar">
+        <button id="proxy-tab" class="side-tab" type="button" aria-pressed="true" title="Proxy">
+          <span class="side-tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg></span>
+          <span>Proxy</span>
+        </button>
+        <a id="games-tab" class="side-tab" href="/games.html" title="Games">
+          <span class="side-tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 8h10a4 4 0 0 1 3.8 5.2l-.7 2.2a2 2 0 0 1-3.2 1l-2.1-1.7h-5.6l-2.1 1.7a2 2 0 0 1-3.2-1l-.7-2.2A4 4 0 0 1 7 8Z"/><path d="M8 10v4m-2-2h4m7-1h.01M17 13h.01"/></svg></span>
+          <span>Games</span>
+        </a>
+        <button id="cloak-tab" class="side-tab" type="button" title="Open Nightshift with your favorite cloak">
+          <span class="side-tab-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 19 6v5c0 4.3-2.8 7.8-7 10-4.2-2.2-7-5.7-7-10V6l7-3Z"/><path d="m9 12 2 2 4-4"/></svg></span>
+          <span>Cloak</span>
+        </button>
+      </aside>
+      <div class="browser-main">
+        <section class="tabbar" aria-label="Browser tabs">
+          <div id="tabs" class="tabs" role="tablist"></div>
+          <button id="new-tab" class="new-tab" title="New tab" aria-label="Open new tab"><span>+</span></button>
+        </section>
+
+    <nav class="toolbar" aria-label="Browser controls">
+      <div class="nav-controls">
+        <button id="back" class="icon-button" title="Back" aria-label="Back"><svg viewBox="0 0 24 24"><path d="m14.5 5-7 7 7 7"/></svg></button>
+        <button id="forward" class="icon-button" title="Forward" aria-label="Forward"><svg viewBox="0 0 24 24"><path d="m9.5 5 7 7-7 7"/></svg></button>
+        <button id="reload" class="icon-button" title="Reload" aria-label="Reload"><svg viewBox="0 0 24 24"><path d="M20 7v5h-5M4.8 9a7.5 7.5 0 0 1 12.7-2L20 12M4 17v-5h5m10.2 3a7.5 7.5 0 0 1-12.7 2L4 12"/></svg></button>
+        <button id="home" class="icon-button" title="Home" aria-label="Home"><svg viewBox="0 0 24 24"><path d="m3 10 9-7 9 7M5.5 9v11h13V9M9.5 20v-6h5v6"/></svg></button>
+      </div>
+      <form id="address-form" class="address-form">
+        <span class="address-lock" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 1 1 8 0v3"/></svg></span>
+        <input id="address" type="text" placeholder="Search or enter a website" autocomplete="off" spellcheck="false" aria-label="Search or enter a website">
+        <kbd>↵</kbd>
+      </form>
+      <button id="bookmark" class="icon-button bookmark" title="Bookmark this page" aria-label="Bookmark this page"><svg viewBox="0 0 24 24"><path d="M6 4.8c0-.4.4-.8.8-.8h10.4c.4 0 .8.4.8.8V21l-6.8-4-6.2 4V4.8Z"/></svg></button>
+    </nav>
+
+    <nav id="bookmarks-bar" class="bookmarks-bar" aria-label="Bookmarks" hidden>
+      <span class="bookmarks-label">BOOKMARKS</span>
+      <div id="bookmark-items" class="bookmark-items"></div>
+    </nav>
+
+      <section id="stage" class="stage" aria-label="Web page">
+      <div id="home-view" class="home-view">
+        <div class="hero">
+          <h1>Nightshift</h1>
+          <div class="hero-tagline">A little more off the grid.</div>
+          <form id="hero-form" class="hero-search">
+            <svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.4 4.4"/></svg>
+            <input id="hero-address" type="text" placeholder="Search DuckDuckGo or enter an address" autocomplete="off" spellcheck="false" aria-label="Search the web or enter an address">
+            <button type="submit" aria-label="Go"><span>Go</span><svg viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></button>
+          </form>
+        </div>
+        <div class="quick-section">
+          <div class="section-heading"><span>QUICK ACCESS</span><span class="heading-rule"></span><span class="section-count">04</span></div>
+          <div id="shortcuts" class="shortcuts"></div>
+        </div>
+        <footer class="home-footer"><span><span class="footer-dot"></span> BROWSING, ON YOUR TERMS</span><span>POWERED BY SCRAMJET<span class="footer-spark"> ✳</span></span><span>CREATED BY <a href="https://github.com/palmtree890" target="_blank" rel="noopener noreferrer">PALMTREE890</a></span></footer>
+      </div>
+      <div id="frames" class="frames"></div>
+      <div id="page-loading" class="page-loading" hidden role="status" aria-live="polite">
+        <span class="loading-spinner" aria-hidden="true"></span>
+        <strong>Loading page</strong>
+        <span id="page-loading-note">Large sites can take a moment.</span>
+        <button id="retry-other-transport" class="loading-retry" type="button" hidden>Retry with Epoxy</button>
+      </div>
+    </section>
+        <div class="bottomline"><span>nightshift <span class="bottom-sep">/</span> browse lightly</span><span>BROWSE FREELY</span></div>
+      </div>
+  </main>
+  <div id="settings" class="settings-backdrop" hidden>
+    <section class="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <header class="settings-heading"><div><span class="settings-kicker">NIGHTSHIFT</span><h2 id="settings-title">Settings</h2></div><button id="settings-close" class="icon-button" type="button" aria-label="Close settings">×</button></header>
+      <form id="settings-form">
+        <section class="settings-section">
+          <h3>Search</h3>
+        <label class="settings-label" for="search-engine">Default search engine</label>
+        <select id="search-engine" class="settings-select">
+          <option value="duckduckgo">DuckDuckGo</option>
+          <option value="brave">Brave Search</option>
+          <option value="startpage">Startpage</option>
+          <option value="palmtree">Palmtree Search</option>
+          <option value="custom">Custom endpoint</option>
+        </select>
+        <div id="custom-search-row" class="custom-search-row" hidden>
+          <label class="settings-label" for="custom-search">Search URL template</label>
+          <input id="custom-search" class="settings-input" type="text" placeholder="https://search.example/?q=%s" autocomplete="off" spellcheck="false">
+          <p class="settings-help">Use <code>%s</code> where the search terms should go.</p>
+        </div>
+        </section>
+        <section class="settings-section">
+          <h3>Quick access</h3>
+          <p class="settings-help">Choose the names and web addresses shown on your homepage.</p>
+          <div id="shortcut-editor" class="shortcut-editor"></div>
+          <button id="add-shortcut" class="settings-add" type="button">+ Add site</button>
+        </section>
+        <section class="settings-section">
+          <h3>Cloaking</h3>
+          <label class="settings-label" for="favorite-cloak-mode">Favorite method for the sidebar shield</label>
+          <select id="favorite-cloak-mode" class="settings-select">
+            <option value="about:blank">about:blank tab</option>
+            <option value="blob">Blob URL tab</option>
+          </select>
+          <p class="settings-help">The shield button opens Nightshift with this method.</p>
+          <label class="settings-label" for="cloak-mode">Open Nightshift in</label>
+          <select id="cloak-mode" class="settings-select">
+            <option value="none">This tab (no cloaking)</option>
+            <option value="about:blank">about:blank tab</option>
+            <option value="blob">Blob URL tab</option>
+          </select>
+          <label class="settings-label" for="cloak-title">Cloaked tab title</label>
+          <input id="cloak-title" class="settings-input" type="text" maxlength="64" placeholder="Nightshift" autocomplete="off">
+          <label class="settings-label cloak-icon-label" for="cloak-icon">Cloaked tab icon URL</label>
+          <input id="cloak-icon" class="settings-input" type="text" placeholder="https://example.com/favicon.ico" autocomplete="off" spellcheck="false">
+          <label class="settings-label cloak-redirect-label" for="cloak-redirect">Original tab page after cloaking</label>
+          <input id="cloak-redirect" class="settings-input" type="text" value="https://www.google.com/" placeholder="https://www.google.com/" autocomplete="off" spellcheck="false">
+          <p class="settings-help">After a cloaked tab opens, the original tab navigates to this page.</p>
+          <p class="settings-help">Opens Nightshift inside an about:blank or blob URL tab. Some browsers block these tabs. <a href="https://github.com/ndirmn3/Simple-aboutblank-blobhttps-datatext-cloakers" target="_blank" rel="noreferrer">About these cloaking methods</a></p>
+          <button id="open-cloaked" class="settings-add cloak-launch" type="button">Open Nightshift</button>
+        </section>
+        <section class="settings-section">
+          <h3>Proxy</h3>
+        <div class="custom-search-row">
+          <label class="settings-label" for="proxy-transport">Proxy transport</label>
+          <select id="proxy-transport" class="settings-select">
+            <option value="libcurl">libcurl</option>
+            <option value="epoxy">Epoxy</option>
+          </select>
+          <p class="settings-help">Choose how Nightshift connects to websites. The change applies to open tabs.</p>
+        </div>
+        </section>
+        <section class="settings-section">
+          <h3>Backup</h3>
+          <p class="settings-help">Export or restore your search, quick access, cloaking, transport, and bookmarks settings.</p>
+          <div class="backup-actions">
+            <button id="export-settings" class="settings-add" type="button">Export backup</button>
+            <button id="import-settings" class="settings-add" type="button">Import backup</button>
+            <input id="import-settings-file" type="file" accept="application/json,.json" hidden>
+          </div>
+        </section>
+        <div class="settings-actions"><button id="settings-cancel" class="settings-cancel" type="button">Cancel</button><button class="settings-save" type="submit">Save settings</button></div>
+      </form>
+    </section>
+  </div>
+  <div id="toast" class="toast" role="status"></div>
+  <script src="/scram/scramjet.js"></script>
+  <script src="/controller/controller.api.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>
