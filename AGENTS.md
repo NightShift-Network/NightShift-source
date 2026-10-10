@@ -20,6 +20,16 @@ Use two spaces in JavaScript, JSON, HTML, and CSS. Use server ES modules, `camel
 
 Use short, imperative commit subjects, such as `Add persistent bookmarks`. Pull requests should summarize visible changes, config/dependency updates, checks, and screenshots for substantial UI work. Link issues when relevant.
 
+To publish to GitHub, stage and commit changes before pushing the `main` branch:
+
+```sh
+git add -A
+git commit -m "Describe the change"
+git push -u origin main
+```
+
+The `src refspec main does not match any` error means there is no local commit for `main` yet. Create the initial commit first; for later pushes, use `git push` after committing.
+
 ## Security and Configuration
 
 Keep secrets and host-specific settings out of source control; use environment variables such as `PORT`. Preserve `/wisp/` and service-worker behavior. `server.js` intentionally omits `Cross-Origin-Embedder-Policy`; `require-corp` or `credentialless` can block game iframes. A proxy/CDN may add COEP; Nginx `proxy_hide_header` does not override its own `add_header`.
