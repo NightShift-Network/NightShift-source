@@ -1,0 +1,11 @@
+services:
+  nightshift:
+    build: .
+    image: nightshift:local
+    container_name: nightshift
+    init: true
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+    ports:
+      - "127.0.0.1:${NIGHTSHIFT_PORT:-3005}:3000"

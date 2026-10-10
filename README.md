@@ -82,6 +82,8 @@ This guide is for anyone hosting NightShift behind a VPS. The VPS provides the p
 
 The included automation currently supports FreeDNS dynamic A records. It fetches existing records through the FreeDNS API, selects one, updates it to the VPS address, configures Nginx, and requests a Let's Encrypt certificate. Other DNS providers can be used with the manual Nginx and Certbot steps below after creating an A record that points to the VPS. The script does not register new domains or create masked/frame redirects. With FreeDNS, create the hostname in its website first and use a real A record.
 
+Choose the deployment that matches where NightShift runs. The FreeDNS installer below is for a public hostname that proxies to a NightShift server at a **different, already reachable upstream hostname**. If NightShift runs on this same VPS, use the same-VPS setup below and proxy Nginx to `127.0.0.1:3005`. Do not set the upstream to the public hostname that resolves back to this VPS; that creates a proxy loop. Do not leave example hostnames such as `proxy.example.com` or `nightshift.example.net` in the configuration.
+
 ### Automated VPS Setup
 
 For the automated FreeDNS setup, use a Debian or Ubuntu VPS with ports 80 and 443 allowed. Clone the repository on the VPS, or copy the `scripts/` directory and `.env.example` there. Configure the installer:
@@ -122,17 +124,66 @@ sudo /usr/local/sbin/nightshift-vps-proxy --remove
 
 This asks for confirmation, removes the NightShift Nginx site, cron job, installed refresh command, and saved server credentials, and keeps the certificate and DNS record. To also delete the certificate for the configured hostname, use `--remove --delete-certificate`. Nginx itself and the Certbot timer are left installed because they may serve other sites or certificates.
 
-### 1. Point FreeDNS at the VPS
+### Automated Docker setup when NightShift runs on this VPS
 
-At your DNS provider, create an **A record** for `proxy.example.com` pointing to the VPS public IPv4 address. Do not create an AAAA record unless the VPS has working public IPv6 and its firewall permits it. If using FreeDNS, choose an A record rather than **Web Forward / Cloak**. Wait for DNS to update and check it with:
+The root-level `setup.sh` installs Docker, Compose, Nginx, and Certbot when needed; builds NightShift's Docker image; publishes the app on loopback; configures Nginx and HTTPS; and enables certificate renewal. It targets Debian/Ubuntu VPSs. Before running it:
+
+- Clone this repository onto the VPS.
+- Point the hostname's A record to the VPS. Add an AAAA record only if public IPv6 works there.
+- Allow inbound TCP ports 80 and 443.
+
+Run setup with your hostname, email, and (optionally) a host port. The default is `3005`:
 
 ```sh
-dig +short A proxy.example.com
+sudo ./setup.sh --domain nightshift.example.com --email you@example.com
+sudo ./setup.sh --domain nightshift.example.com --email you@example.com --port 3010
+```
+
+The chosen host port is written to the ignored `.nightshift.env` file; the container listens internally on port `3000`, and Docker binds the selected port to `127.0.0.1` only. The installer does not overwrite `.env`, which may contain the FreeDNS proxy script's settings. If the hostname already has a Certbot certificate at `/etc/letsencrypt/live/<hostname>`, setup reuses it. Otherwise it requests one through Certbot's Nginx plugin. It adds a renewal deploy hook that reloads Nginx after renewal.
+
+If the old default Nginx site contains only the catch-all and this hostname, the installer asks to back it up and disable its symlink so it won't serve the old welcome page for this domain. The backup is stored under `/var/backups/nightshift-setup/`. It stops if another named Nginx site conflicts, rather than editing an unrelated site. If a manually started container named `nightshift` uses this same checkout, setup replaces it with the Compose-managed container. It asks before replacing a different container with that name. Review each prompt; `--yes` accepts those replacements automatically.
+
+Use the installer to manage the daemon-backed container:
+
+```sh
+sudo ./setup.sh --stop
+sudo ./setup.sh --start
+sudo ./setup.sh --restart
+sudo ./setup.sh --logs
+```
+
+To update code, pull it in the checkout and rebuild/recreate the container:
+
+```sh
+git pull
+sudo ./setup.sh --update
+```
+
+The Compose service uses Docker's `unless-stopped` restart policy, and setup enables the Docker daemon at boot. The container returns after a VPS reboot unless you explicitly stopped it. Docker documents the [restart policy](https://docs.docker.com/reference/compose-file/services/#restart) and [port binding](https://docs.docker.com/reference/compose-file/services/#ports). The same operations are available through `docker compose --project-name nightshift --env-file .nightshift.env -f compose.yaml` (`stop`, `start`, `restart`, `logs -f`, and `up -d --build`).
+
+To remove the container and NightShift's Nginx site while keeping the certificate, image, and checkout:
+
+```sh
+sudo ./setup.sh --remove
+```
+
+If setup disabled the prior default-site symlink, `--remove` restores it from the recorded target. Inspect Nginx before removing if other sites rely on that default configuration.
+
+### Manual Nginx setup for a separate upstream
+
+Use this alternative when the public Nginx VPS is **not** the machine running NightShift. The upstream hostname must resolve to that other machine, and it must already serve NightShift over HTTPS. Do not use the public Nginx hostname as the upstream when it resolves back to this VPS.
+
+#### 1. Point your DNS hostname at the VPS
+
+At your DNS provider, create an **A record** for your public proxy hostname pointing to the VPS public IPv4 address. Do not create an AAAA record unless the VPS has working public IPv6 and its firewall permits it. If using FreeDNS, choose an A record rather than **Web Forward / Cloak**. Wait for DNS to update and check it with:
+
+```sh
+dig +short A proxy.your-domain.example
 ```
 
 DNS must return the VPS address.
 
-### 2. Install Nginx and Certbot on the VPS
+#### 2. Install Nginx and Certbot on the VPS
 
 On Debian or Ubuntu, install Nginx and Certbot's Nginx plugin, then allow inbound TCP ports 80 and 443 in the VPS firewall/provider firewall:
 
@@ -150,38 +201,38 @@ map $http_upgrade $connection_upgrade {
 }
 ```
 
-Create `/etc/nginx/sites-available/nightshift` with this HTTP virtual host. It proxies requests to the hostname where your NightShift server is already reachable:
+Create `/etc/nginx/sites-available/nightshift` with this HTTP virtual host. Replace both example hostnames: `proxy.your-domain.example` is the public DNS name for this VPS, and `nightshift-upstream.your-domain.example` is a different hostname where NightShift is already reachable:
 
 ```nginx
 server {
     listen 80;
     listen [::]:80;
-    server_name proxy.example.com;
+    server_name proxy.your-domain.example;
 
     location /wisp/ {
-        proxy_pass https://nightshift.example.net;
+        proxy_pass https://nightshift-upstream.your-domain.example;
         proxy_hide_header Cross-Origin-Embedder-Policy;
         proxy_http_version 1.1;
-        proxy_set_header Host nightshift.example.net;
+        proxy_set_header Host nightshift-upstream.your-domain.example;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $connection_upgrade;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_ssl_server_name on;
-        proxy_ssl_name nightshift.example.net;
+        proxy_ssl_name nightshift-upstream.your-domain.example;
         proxy_ssl_verify on;
         proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
         proxy_read_timeout 3600s;
     }
 
     location / {
-        proxy_pass https://nightshift.example.net;
+        proxy_pass https://nightshift-upstream.your-domain.example;
         proxy_hide_header Cross-Origin-Embedder-Policy;
-        proxy_set_header Host nightshift.example.net;
+        proxy_set_header Host nightshift-upstream.your-domain.example;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_ssl_server_name on;
-        proxy_ssl_name nightshift.example.net;
+        proxy_ssl_name nightshift-upstream.your-domain.example;
         proxy_ssl_verify on;
         proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
     }
@@ -196,14 +247,14 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-If the symlink already exists, do not create it again. Confirm that `http://proxy.example.com/` reaches the NightShift page before requesting the certificate.
+If the symlink already exists, do not create it again. Confirm that `http://proxy.your-domain.example/` reaches the NightShift page before requesting the certificate.
 
-### 3. Issue the HTTPS Certificate
+#### 3. Issue the HTTPS Certificate
 
 Run Certbot for your public hostname:
 
 ```sh
-sudo certbot --nginx -d proxy.example.com
+sudo certbot --nginx -d proxy.your-domain.example
 ```
 
 Follow the prompts and select the HTTP-to-HTTPS redirect option. Certbot's HTTP validation needs public access to port 80, and the A record must resolve to this VPS. Certbot configures Nginx to serve the certificate and renewals are normally handled by its system timer. Check renewal with:
@@ -212,11 +263,43 @@ Follow the prompts and select the HTTP-to-HTTPS redirect option. Certbot's HTTP 
 sudo certbot renew --dry-run
 ```
 
-Then browse to `https://proxy.example.com` and test navigation. The `/wisp/` WebSocket route is required for proxy traffic. This VPS terminates public HTTPS and relays requests to the NightShift upstream hostname. The upstream example `nightshift.example.net` should be replaced with the public hostname for your NightShift server.
+Then browse to `https://proxy.your-domain.example` and test navigation. The `/wisp/` WebSocket route is required for proxy traffic. This VPS terminates public HTTPS and relays requests to the separate NightShift upstream hostname.
+
+### Certificate renewal and the setup script's cron job
+
+An issued certificate does not renew itself just because Nginx is serving it. Certbot needs a scheduled `certbot renew` run. On Debian/Ubuntu, check whether the systemd timer or a cron job is active:
+
+```sh
+sudo systemctl status certbot.timer
+sudo systemctl list-timers --all certbot.timer
+sudo grep -R "certbot.*renew" /etc/cron.d /etc/crontab 2>/dev/null
+sudo certbot renew --dry-run
+```
+
+Certbot's `renew` command skips certificates that are not due yet; a dry run checks the renewal path without replacing the live certificate. The Nginx plugin stores its renewal configuration for certificates issued with `certbot --nginx`. See the [Certbot renewal documentation](https://eff-certbot.readthedocs.io/en/stable/using.html#renewing-certificates).
+
+The optional FreeDNS cron job created by `setup-vps-proxy.sh` is `/etc/cron.d/nightshift-vps-proxy`. It runs the installed helper at `/usr/local/sbin/nightshift-vps-proxy --refresh`, which updates the FreeDNS A record and then runs `certbot renew` with an Nginx reload hook. The script writes this cron file only near the end of a successful setup. If an earlier step failed, earlier DNS/Nginx/certificate changes may remain even though the cron file and helper were never installed. Inspect the cron file and timer directly; do not assume the script's cron exists because the script was started.
+
+The same-VPS `setup.sh` uses Certbot's systemd timer when available and installs a daily renewal cron fallback otherwise. It does not depend on the FreeDNS script's cron job.
+
+When the script is configured to use its cron job, it disables `certbot.timer` to avoid relying on two schedulers. If the script's cron file is missing, make sure the systemd timer is enabled instead:
+
+```sh
+sudo systemctl enable --now certbot.timer
+sudo certbot renew --dry-run
+```
+
+If a certificate expires before a successful renewal, browsers will report that the HTTPS certificate is expired and normally block the page. The HTTP-to-HTTPS redirect does not avoid that error. Restore automated renewal, run `sudo certbot renew`, and reload Nginx so it serves the renewed certificate. Certbot's official [renewal instructions](https://eff-certbot.readthedocs.io/en/stable/using.html#automated-renewals) explain how to verify the scheduler for the installation method.
 
 ### Firefox Reports `NS_ERROR_DOM_COEP_FAILED`
 
-NightShift no longer sets `Cross-Origin-Embedder-Policy`, because that policy prevents Firefox from embedding game pages that do not opt in. Restart the Node process after updating NightShift:
+NightShift no longer sets `Cross-Origin-Embedder-Policy`, because that policy prevents Firefox from embedding game pages that do not opt in. Restart NightShift after updating it. For the Docker setup above:
+
+```sh
+docker restart nightshift
+```
+
+For a PM2 deployment, use:
 
 ```sh
 pm2 restart nightshift
@@ -225,7 +308,7 @@ pm2 restart nightshift
 If the error remains, check whether the public response still includes the header:
 
 ```sh
-curl -sSI https://proxy.example.com/ | grep -i cross-origin-embedder-policy
+curl -sSI https://your.domain.example/ | grep -i cross-origin-embedder-policy
 ```
 
 No output is expected. Find Nginx rules that set or forward the header:
@@ -244,7 +327,7 @@ Check the public response again. If the header still appears and Nginx's config 
 
 ### Remove a Manually Configured VPS Proxy
 
-For a setup made with the manual steps above, remove only the NightShift site and its related files. Replace the site filename below if you chose a different name:
+For the separate-upstream setup above, remove only the NightShift site and its related files. Replace the site filename below if you chose a different name:
 
 ```sh
 sudo rm -f /etc/nginx/sites-enabled/nightshift
@@ -261,7 +344,15 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-To delete the certificate as well, first list its Certbot name with `sudo certbot certificates`, then remove the matching certificate by name, for example `sudo certbot delete --cert-name proxy.example.com`. Remove or repoint the DNS A record separately in your DNS provider. Do not uninstall Nginx or disable Certbot's renewal timer if the VPS uses them for other sites.
+To delete the certificate as well, first list its Certbot name with `sudo certbot certificates`, then remove the matching certificate by name, for example `sudo certbot delete --cert-name your.domain.example`. Remove or repoint the DNS A record separately in your DNS provider. Do not uninstall Nginx or disable the Certbot renewal timer if the VPS uses them for other sites.
+
+For the same-VPS Docker setup, remove the proxy locations from the existing NightShift TLS virtual host, validate/reload Nginx, and then stop/remove the container. Keep its certificate directives and other apps' Nginx sites:
+
+```sh
+sudo nginx -t && sudo systemctl reload nginx
+docker stop nightshift
+docker rm nightshift
+```
 
 ## Configuration
 
@@ -271,7 +362,6 @@ Open the gear menu to select a search engine and proxy transport, edit homepage 
 
 - Optional Tor routing for proxy traffic and support for `.onion` sites
 - Import and export for bookmarks and preferences
-- Container and service-manager deployment examples
 - Broader site compatibility and clearer connection diagnostics
 
 Roadmap items are planned and are not implemented unless listed under Features.
