@@ -19,6 +19,7 @@ git clone https://github.com/palmtree890/NightShift.git
 cd NightShift
 sudo ./setup.sh --domain your.domain.example --email you@example.com
 ```
+# NOTE: If the setup script fails you can simply run it again and it will likely fix the issue.
 
 The script will:
 - Install Docker, Docker Compose, Nginx, and Certbot (if not already installed)
