@@ -15,6 +15,7 @@ DOMAIN=""
 EMAIL=""
 PORT_ARG=""
 YES="no"
+DELETE_CERTIFICATE="no"
 
 usage() {
   cat <<'HELP'
@@ -24,25 +25,30 @@ Usage:
   sudo ./setup.sh --domain HOSTNAME --email EMAIL [--port PORT] [--yes]
   sudo ./setup.sh --update
   sudo ./setup.sh --start|--stop|--restart|--logs
-  sudo ./setup.sh --remove
+  sudo ./setup.sh --remove [--delete-certificate]
+  sudo ./setup.sh --remove-nginx [--delete-certificate]
+  sudo ./setup.sh --delete-certificate [--domain HOSTNAME]
 
 Setup installs Docker/Compose, Nginx, and Certbot when needed; builds the
 NightShift image; binds it to 127.0.0.1 on the selected host port (default
 3005); configures Nginx and HTTPS; and enables certificate renewal.
 
 Options:
-  --domain HOSTNAME  Public DNS name pointing to this VPS
-  --email EMAIL      Contact email for a new Let's Encrypt certificate
-  --port PORT        Loopback host port for NightShift (default 3005)
-  --yes              Accept safe replacement of this NightShift container or
-                     the default Nginx site when it owns the requested host
-  --update           Rebuild the image and recreate the running container
-  --start            Start the container
-  --stop             Stop the container
-  --restart          Restart the container
-  --logs             Follow container logs
-  --remove           Remove the container and NightShift Nginx site; keep cert
-  --help             Show this help
+  --domain HOSTNAME       Public DNS name pointing to this VPS
+  --email EMAIL           Contact email for a new Let's Encrypt certificate
+  --port PORT             Loopback host port for NightShift (default 3005)
+  --yes                   Accept safe replacements and skip confirmation prompts
+  --update                Rebuild the image and recreate the running container
+  --start                 Start the container
+  --stop                  Stop the container
+  --restart               Restart the container
+  --logs                  Follow container logs
+  --remove                Remove the container and NightShift Nginx site
+  --delete-certificate    Delete the Let's Encrypt SSL certificate for the domain
+  --remove-cert           Alias for --delete-certificate
+  --remove-ssl            Alias for --delete-certificate
+  --remove-nginx          Remove only the NightShift Nginx site configuration
+  --help                  Show this help
 
 Run setup from a clone of this repository. The hostname must resolve to the
 VPS and public TCP ports 80 and 443 must be reachable for certificate setup.
@@ -61,6 +67,19 @@ while (($#)); do
     --restart) MODE="restart"; shift ;;
     --logs) MODE="logs"; shift ;;
     --remove) MODE="remove"; shift ;;
+    --remove-nginx)
+      if [[ $MODE != remove ]]; then
+        MODE="remove_nginx"
+      fi
+      shift
+      ;;
+    --delete-certificate|--delete-cert|--remove-cert|--remove-ssl)
+      DELETE_CERTIFICATE="yes"
+      if [[ $MODE != remove && $MODE != remove_nginx ]]; then
+        MODE="delete_cert"
+      fi
+      shift
+      ;;
     --help|-h) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -78,9 +97,103 @@ fi
 
 cd "$SCRIPT_DIR"
 
+confirm() {
+  local prompt="$1" answer=""
+  if [[ $YES == yes ]]; then return 0; fi
+  if [[ ! -r /dev/tty ]]; then
+    echo "$prompt (rerun with --yes to accept)" >&2
+    return 1
+  fi
+  read -r -p "$prompt [y/N] " answer </dev/tty
+  [[ $answer == y || $answer == Y || $answer == yes || $answer == YES ]]
+}
+
 read_saved_port() {
   if [[ -f $ENV_FILE ]]; then
     sed -n 's/^NIGHTSHIFT_PORT=//p' "$ENV_FILE" | tail -n 1
+  fi
+}
+
+read_saved_domain() {
+  if [[ -n "${DOMAIN:-}" ]]; then
+    printf '%s\n' "$DOMAIN"
+    return 0
+  fi
+  if [[ -f $ENV_FILE ]]; then
+    local d
+    d="$(sed -n 's/^NIGHTSHIFT_DOMAIN=//p' "$ENV_FILE" | tail -n 1)"
+    if [[ -n $d ]]; then
+      printf '%s\n' "$d"
+      return 0
+    fi
+  fi
+  if [[ -f "$SETUP_STATE/domain" ]]; then
+    local d
+    d="$(cat "$SETUP_STATE/domain" 2>/dev/null || true)"
+    if [[ -n $d ]]; then
+      printf '%s\n' "$d"
+      return 0
+    fi
+  fi
+  if [[ -f "$NGINX_SITE" ]]; then
+    local d
+    d="$(sed -n 's|.*ssl_certificate /etc/letsencrypt/live/\([^/]*\)/fullchain\.pem;.*|\1|p' "$NGINX_SITE" | head -n 1)"
+    if [[ -n $d ]]; then
+      printf '%s\n' "$d"
+      return 0
+    fi
+    d="$(awk '/server_name/ {sub(/;/, ""); for (i=2; i<=NF; i++) if ($i != "_" && $i ~ /\./) {print $i; exit}}' "$NGINX_SITE")"
+    if [[ -n $d ]]; then
+      printf '%s\n' "$d"
+      return 0
+    fi
+  fi
+  return 1
+}
+
+remove_nginx_config() {
+  echo "Removing NightShift Nginx site and renewal hooks..."
+  rm -f "$NGINX_LINK" "$NGINX_SITE"
+  rm -f "$RELOAD_HOOK"
+  rm -f "$RENEW_CRON"
+  if [[ -f "$SETUP_STATE/default-link-target" && ! -e /etc/nginx/sites-enabled/default ]]; then
+    mkdir -p /etc/nginx/sites-enabled
+    ln -s "$(cat "$SETUP_STATE/default-link-target")" /etc/nginx/sites-enabled/default
+    rm -f "$SETUP_STATE/default-link-target"
+    echo "Restored previous default Nginx site."
+  fi
+  if command -v nginx >/dev/null 2>&1; then
+    if nginx -t >/dev/null 2>&1; then
+      systemctl reload nginx
+      echo "Nginx reloaded successfully."
+    else
+      echo "Warning: nginx -t failed after removing site configuration; check /etc/nginx." >&2
+    fi
+  fi
+}
+
+remove_ssl_certificate() {
+  local target_domain="$1"
+  if [[ -z "$target_domain" ]]; then
+    echo "No domain specified for certificate removal." >&2
+    return 1
+  fi
+
+  if ! command -v certbot >/dev/null 2>&1; then
+    echo "Certbot is not installed; cannot remove certificate." >&2
+    return 1
+  fi
+
+  echo "Removing Let's Encrypt certificate for $target_domain..."
+  if certbot delete --cert-name "$target_domain" --non-interactive 2>/dev/null; then
+    echo "Certificate for $target_domain removed successfully."
+  elif [[ -d "/etc/letsencrypt/live/$target_domain" ]]; then
+    rm -rf "/etc/letsencrypt/live/$target_domain" \
+           "/etc/letsencrypt/archive/$target_domain" \
+           "/etc/letsencrypt/renewal/$target_domain.conf"
+    echo "Removed certificate files for $target_domain from /etc/letsencrypt."
+  else
+    echo "No active Let's Encrypt certificate found for $target_domain."
   fi
 }
 
@@ -124,19 +237,63 @@ case "$MODE" in
     ;;
   remove)
     command -v docker >/dev/null && "${COMPOSE[@]}" down || true
-    rm -f "$NGINX_LINK" "$NGINX_SITE"
-    rm -f "$RELOAD_HOOK"
-    rm -f "$RENEW_CRON"
-    if [[ -f "$SETUP_STATE/default-link-target" && ! -e /etc/nginx/sites-enabled/default ]]; then
-      mkdir -p /etc/nginx/sites-enabled
-      ln -s "$(cat "$SETUP_STATE/default-link-target")" /etc/nginx/sites-enabled/default
-      rm -f "$SETUP_STATE/default-link-target"
+    remove_nginx_config
+    target_domain="$(read_saved_domain || true)"
+    if [[ $DELETE_CERTIFICATE != yes && -n "$target_domain" && $YES != yes && -r /dev/tty ]]; then
+      if confirm "Also delete the Let's Encrypt SSL certificate for $target_domain?"; then
+        DELETE_CERTIFICATE="yes"
+      fi
     fi
-    if command -v nginx >/dev/null; then
-      nginx -t
-      systemctl reload nginx
+    if [[ $DELETE_CERTIFICATE == yes ]]; then
+      if [[ -n "$target_domain" ]]; then
+        remove_ssl_certificate "$target_domain"
+        rm -f "$SETUP_STATE/domain"
+      else
+        echo "Could not identify domain; SSL certificate was kept. Specify with --domain HOSTNAME." >&2
+      fi
+      echo "NightShift container, Nginx site, and SSL certificate were removed. Repository and Docker image were kept."
+    else
+      echo "NightShift container and Nginx site removed. The SSL certificate, repository, and Docker image were kept."
     fi
-    echo "NightShift container and Nginx site removed. The certificate, repository, and Docker image were kept."
+    exit 0
+    ;;
+  remove_nginx)
+    remove_nginx_config
+    target_domain="$(read_saved_domain || true)"
+    if [[ $DELETE_CERTIFICATE != yes && -n "$target_domain" && $YES != yes && -r /dev/tty ]]; then
+      if confirm "Also delete the Let's Encrypt SSL certificate for $target_domain?"; then
+        DELETE_CERTIFICATE="yes"
+      fi
+    fi
+    if [[ $DELETE_CERTIFICATE == yes ]]; then
+      if [[ -n "$target_domain" ]]; then
+        remove_ssl_certificate "$target_domain"
+        rm -f "$SETUP_STATE/domain"
+      else
+        echo "Could not identify domain; SSL certificate was kept. Specify with --domain HOSTNAME." >&2
+      fi
+      echo "NightShift Nginx site and SSL certificate were removed. The container was kept."
+    else
+      echo "NightShift Nginx site removed. The Docker container and SSL certificate were kept."
+    fi
+    exit 0
+    ;;
+  delete_cert)
+    target_domain="$(read_saved_domain || true)"
+    if [[ -z "$target_domain" ]]; then
+      echo "Could not identify domain. Specify with --domain HOSTNAME." >&2
+      exit 1
+    fi
+    if [[ -e "$NGINX_LINK" || -e "$NGINX_SITE" ]]; then
+      echo "NightShift's Nginx configuration ($NGINX_SITE) currently references this certificate."
+      if confirm "Also remove the NightShift Nginx site configuration so Nginx doesn't fail?"; then
+        remove_nginx_config
+      else
+        echo "Keeping Nginx site. Note that Nginx will fail to reload without a valid certificate." >&2
+      fi
+    fi
+    remove_ssl_certificate "$target_domain"
+    rm -f "$SETUP_STATE/domain"
     exit 0
     ;;
 esac
@@ -149,17 +306,6 @@ if [[ ! $EMAIL =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]]; then
   echo "Supply a valid contact email with --email." >&2
   exit 2
 fi
-
-confirm() {
-  local prompt="$1" answer=""
-  if [[ $YES == yes ]]; then return 0; fi
-  if [[ ! -r /dev/tty ]]; then
-    echo "$prompt (rerun with --yes to accept)" >&2
-    return 1
-  fi
-  read -r -p "$prompt [y/N] " answer </dev/tty
-  [[ $answer == y || $answer == Y || $answer == yes || $answer == YES ]]
-}
 
 if ! command -v apt-get >/dev/null || ! grep -qE '^ID=(ubuntu|debian)$' /etc/os-release; then
   echo "Automatic package installation currently supports Debian and Ubuntu." >&2
@@ -179,12 +325,13 @@ systemctl enable --now docker nginx
 docker compose version >/dev/null
 
 mkdir -p "$SETUP_STATE" "$BACKUP_DIR"
+printf '%s\n' "$DOMAIN" > "$SETUP_STATE/domain"
 
 tmp_env="$(mktemp)"
 if [[ -f $ENV_FILE ]]; then
-  awk '!/^NIGHTSHIFT_PORT=/' "$ENV_FILE" > "$tmp_env"
+  awk '!/^(NIGHTSHIFT_PORT|NIGHTSHIFT_DOMAIN)=/' "$ENV_FILE" > "$tmp_env"
 fi
-printf 'NIGHTSHIFT_PORT=%s\n' "$PORT" >> "$tmp_env"
+printf 'NIGHTSHIFT_PORT=%s\nNIGHTSHIFT_DOMAIN=%s\n' "$PORT" "$DOMAIN" >> "$tmp_env"
 install -m 600 "$tmp_env" "$ENV_FILE"
 rm -f "$tmp_env"
 

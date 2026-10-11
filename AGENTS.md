@@ -42,6 +42,10 @@ The Games link opens `public/games.html`. It uses LuminSDK headless mode and bui
 
 The Proxy, Games, and Cloak sections fill the app viewport and are selected from the sidebar. Cloaking preferences include a favorite method, a configurable page behind the cloaked tab, and custom tab title/icon values. Bookmark and settings data are stored locally and can be imported or exported; preserve validation and avoid overwriting unrelated browser storage. The bookmark bar is rendered only when at least one bookmark exists. The home footer credits `palmtree890` with a link to the GitHub profile.
 
+## Product Naming
+
+Use NightShift as the product name in user-facing branding where it reads naturally. Keep technical descriptions accurate about proxy behavior and networking; do not disguise or obfuscate those terms to evade content filters or access restrictions.
+
 ## Roadmap: Tor and Onion Support
 
 Tor and `.onion` access are planned, not implemented. Destination connections originate from the NightShift host. Current Wisp integration connects directly and does not expose an upstream SOCKS option, so installing Tor alone is insufficient. Any implementation must route onion hostnames through Tor SOCKS without ordinary DNS or direct fallback, clearly state whether Tor covers onion-only or all traffic, and fail closed when Tor is unavailable. Server-side Tor does not anonymize a user's connection to NightShift. Verify both Epoxy and libcurl paths before documenting support.

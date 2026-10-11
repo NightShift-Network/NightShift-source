@@ -819,6 +819,15 @@
     openCloaked(cloakMode, cloakSettings);
   });
   cloakTabButton.addEventListener("click", () => openCloaked(favoriteCloakMode));
+  proxyTabButton.addEventListener("click", () => {
+    const current = activeTab();
+    if (!current || !current.url) {
+      heroAddress.focus();
+    } else {
+      address.focus();
+      address.select();
+    }
+  });
   document.addEventListener("keydown", event => {
     if (event.key === "Escape" && !settingsDialog.hidden) closeSettings();
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "l") { event.preventDefault(); address.focus(); address.select(); }
@@ -827,6 +836,27 @@
     if (event.altKey && event.key === "ArrowLeft") goHistory(-1);
     if (event.altKey && event.key === "ArrowRight") goHistory(1);
   });
+
+  function checkMobileDevice() {
+    const ua = navigator.userAgent || "";
+    const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+    const hasTouch = (navigator.maxTouchPoints > 0) || ("ontouchstart" in window);
+    const isSmallScreen = window.matchMedia("(max-width: 768px)").matches;
+    const isCoarse = window.matchMedia("(pointer: coarse)").matches;
+    return isMobileUA || (hasTouch && isCoarse) || isSmallScreen;
+  }
+
+  function updateDeviceClass() {
+    const isMobile = checkMobileDevice();
+    document.documentElement.classList.toggle("is-mobile", isMobile);
+    const ua = navigator.userAgent || "";
+    const isPhoneOrTablet = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+    document.documentElement.classList.toggle("is-mobile-device", isPhoneOrTablet);
+  }
+
+  updateDeviceClass();
+  window.addEventListener("resize", updateDeviceClass, { passive: true });
+  window.addEventListener("orientationchange", updateDeviceClass, { passive: true });
 
   function updateClock() {
     document.querySelector("#clock").textContent = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());

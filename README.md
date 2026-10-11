@@ -2,6 +2,62 @@
 
 Nightshift is a self-hosted web proxy with a tabbed dark-mode interface. It uses [Scramjet](https://github.com/MercuryWorkshop/scramjet) to proxy browser traffic and [Wisp](https://github.com/MercuryWorkshop/wisp-js) for its WebSocket transport.
 
+## Easy Install
+
+The fastest way to deploy NightShift on a Debian or Ubuntu VPS with Docker, Nginx reverse proxy, and Let's Encrypt SSL:
+
+### Prerequisites
+
+- A Debian or Ubuntu VPS
+- A public domain name with an **A record** pointing to the VPS IP address
+- Inbound TCP ports `80` and `443` allowed in firewall
+
+### 1. Clone and Run Setup
+
+```sh
+git clone https://github.com/palmtree890/NightShift.git
+cd NightShift
+sudo ./setup.sh --domain your.domain.example --email you@example.com
+```
+
+The script will:
+- Install Docker, Docker Compose, Nginx, and Certbot (if not already installed)
+- Build the NightShift Docker image and start the container bound to `127.0.0.1:3005`
+- Configure Nginx with WebSocket support for `/wisp/` and HTTP-to-HTTPS redirect
+- Obtain and configure a Let's Encrypt SSL certificate and set up automatic renewal
+
+To specify a custom loopback port (default `3005`):
+
+```sh
+sudo ./setup.sh --domain your.domain.example --email you@example.com --port 3010
+```
+
+### Management Commands
+
+```sh
+sudo ./setup.sh --update      # Pull latest changes and rebuild/restart container
+sudo ./setup.sh --start       # Start the container
+sudo ./setup.sh --stop        # Stop the container
+sudo ./setup.sh --restart     # Restart the container
+sudo ./setup.sh --logs        # View live container logs
+```
+
+### Removal and Cleanup
+
+```sh
+# Remove the container and Nginx site configuration (prompts whether to delete SSL certificate)
+sudo ./setup.sh --remove
+
+# Remove container, Nginx site configuration, and delete the SSL certificate
+sudo ./setup.sh --remove --delete-certificate
+
+# Remove only the Nginx site configuration (leaves container running)
+sudo ./setup.sh --remove-nginx
+
+# Delete only the Let's Encrypt SSL certificate
+sudo ./setup.sh --delete-certificate
+```
+
 ## Features
 
 - Full-screen sidebar navigation for Proxy, Games, and quick cloaking access
@@ -161,13 +217,31 @@ sudo ./setup.sh --update
 
 The Compose service uses Docker's `unless-stopped` restart policy, and setup enables the Docker daemon at boot. The container returns after a VPS reboot unless you explicitly stopped it. Docker documents the [restart policy](https://docs.docker.com/reference/compose-file/services/#restart) and [port binding](https://docs.docker.com/reference/compose-file/services/#ports). The same operations are available through `docker compose --project-name nightshift --env-file .nightshift.env -f compose.yaml` (`stop`, `start`, `restart`, `logs -f`, and `up -d --build`).
 
-To remove the container and NightShift's Nginx site while keeping the certificate, image, and checkout:
+To remove the container and NightShift's Nginx site:
 
 ```sh
 sudo ./setup.sh --remove
 ```
 
-If setup disabled the prior default-site symlink, `--remove` restores it from the recorded target. Inspect Nginx before removing if other sites rely on that default configuration.
+When run interactively, `--remove` prompts whether to also delete the Let's Encrypt certificate. To delete the SSL certificate without prompting during removal, pass `--delete-certificate`:
+
+```sh
+sudo ./setup.sh --remove --delete-certificate
+```
+
+To remove only the Nginx site configuration and renewal hooks without affecting the running container:
+
+```sh
+sudo ./setup.sh --remove-nginx
+```
+
+To delete only the Let's Encrypt SSL certificate for the domain:
+
+```sh
+sudo ./setup.sh --delete-certificate
+```
+
+If setup disabled the prior default-site symlink, removing the Nginx configuration restores it from the recorded target. Inspect Nginx before removing if other sites rely on that default configuration.
 
 ### Manual Nginx setup for a separate upstream
 
