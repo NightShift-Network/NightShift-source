@@ -440,7 +440,7 @@
       }));
     }
     await transportLoads.get(kind);
-    if (kind === "epoxy") return new window.EpoxyTransport.EpoxyClient({ wisp: `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/wisp/` });
+    if (kind === "epoxy") return new window.EpoxyTransport.default({ wisp: `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/wisp/` });
     return new window.LibcurlTransport.LibcurlClient({ wisp: `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/wisp/` });
   }
 
