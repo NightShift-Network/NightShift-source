@@ -1,6 +1,13 @@
-# Nightshift
+<div align="center">
+  <img src="public/images/nightshift.png" alt="NightShift logo" width="112" height="112">
+  <h1>NightShift</h1>
+  <p><strong>Your window to the web, after dark.</strong></p>
+  <p>A self-hosted web proxy with a sleek, tabbed dark-mode interface.</p>
+</div>
 
-Nightshift is a self-hosted web proxy with a tabbed dark-mode interface. It uses [Scramjet](https://github.com/MercuryWorkshop/scramjet) to proxy browser traffic and [Wisp](https://github.com/MercuryWorkshop/wisp-js) for its WebSocket transport.
+<br>
+
+NightShift uses [Scramjet](https://github.com/MercuryWorkshop/scramjet) to proxy browser traffic and [Wisp](https://github.com/MercuryWorkshop/wisp-js) for its WebSocket transport.
 
 ## Easy Install
 
