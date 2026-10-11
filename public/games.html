@@ -47,10 +47,10 @@
     .game-details strong { overflow: hidden; color: #e6eae2; font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
     .game-details small { color: #858c82; font: 9px var(--mono); }
     .games-pagination { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 22px 0; color: #92998d; font: 10px var(--mono); }
-    .games-pagination button,#retry { padding: 8px 12px; border: 1px solid #343a31; border-radius: 6px; background: #191c19; color: #dce2d6; font: 11px var(--font); cursor: pointer; }
-    .games-pagination button:hover,#retry:hover { border-color: #667750; color: var(--lime); }
+    .games-pagination button,.retry-button { padding: 8px 12px; border: 1px solid #343a31; border-radius: 6px; background: #191c19; color: #dce2d6; font: 11px var(--font); cursor: pointer; }
+    .games-pagination button:hover,.retry-button:hover { border-color: #667750; color: var(--lime); }
     .games-pagination button:disabled { opacity: .4; cursor: default; }
-    #retry { display: block; margin: 12px 0; }
+    .retry-button { display: inline-block; margin: 12px 8px 12px 0; }
     .empty { grid-column: 1/-1; padding: 28px; color: #8f968a; text-align: center; font-size: 12px; }
     .player { position: fixed; inset: 0; z-index: 10000; display: flex; flex-direction: column; background: #080908; }
     .player[hidden] { display: none; }
@@ -96,7 +96,8 @@
     <p id="status" role="status" aria-live="polite">Connecting to the game library…</p>
     <div id="games-grid" aria-live="polite"></div>
     <nav id="games-pagination" class="games-pagination" aria-label="Game pages" hidden></nav>
-    <button id="retry" type="button" hidden>Try again</button>
+    <button id="retry" class="retry-button" type="button" hidden>Try again</button>
+    <button id="proxy-retry" class="retry-button" type="button" hidden>Try over proxy</button>
     <footer><span>BROWSE FREELY</span><span>POWERED BY LUMINSDK</span></footer>
   </main>
   <section id="game-player" class="player" aria-label="Game player" hidden>
@@ -107,6 +108,7 @@
   <script>
     const status = document.querySelector("#status");
     const retry = document.querySelector("#retry");
+    const proxyRetry = document.querySelector("#proxy-retry");
     const searchInput = document.querySelector("#game-search");
     const gamesGrid = document.querySelector("#games-grid");
     const pagination = document.querySelector("#games-pagination");
@@ -120,11 +122,95 @@
     let requestId = 0;
     let searchTimer;
     let imageUrls = [];
+    let proxyFallback = false;
+    let proxyControllerPromise = null;
+    let nativeFetch = window.fetch.bind(window);
 
     function reportError(error) {
       console.error("LuminSDK error:", error);
       status.textContent = `Games could not be loaded: ${error?.message || error || "Check your connection and try again."}`;
       retry.hidden = false;
+      proxyRetry.hidden = proxyFallback;
+    }
+
+    function loadScript(src) {
+      return new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = src;
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error(`Could not load ${src}`));
+        document.head.append(script);
+      });
+    }
+
+    async function loadProxyTransport(kind) {
+      const path = kind === "epoxy" ? "/epoxy/index.js" : "/libcurl/index.js";
+      await loadScript(path);
+      if (kind === "epoxy") {
+        return new window.EpoxyTransport.EpoxyClient({ wisp: `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/wisp/` });
+      }
+      return new window.LibcurlTransport.LibcurlClient({ wisp: `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/wisp/` });
+    }
+
+    async function getProxyController() {
+      if (!proxyControllerPromise) proxyControllerPromise = (async () => {
+        if (!("serviceWorker" in navigator)) throw new Error("Service workers are unavailable");
+        await loadScript("/scram/scramjet.js");
+        await loadScript("/controller/controller.api.js");
+        const registration = await navigator.serviceWorker.register("/sw.js", { type: "classic", updateViaCache: "none" });
+        await navigator.serviceWorker.ready;
+        const serviceworker = navigator.serviceWorker.controller || registration.active;
+        if (!serviceworker) throw new Error("Scramjet service worker is not active");
+        let transportKind = "libcurl";
+        try {
+          const saved = localStorage.getItem("nightshift-pr0xy-transport") || localStorage.getItem("nightshift-pro" + "xy-transport");
+          if (saved === "epoxy" || saved === "libcurl") transportKind = saved;
+        } catch {}
+        const transport = await loadProxyTransport(transportKind);
+        const { Controller, config } = window.$scramjetController;
+        config.injectPath = "/controller/controller.inject.js";
+        config.scramjetPath = "/scram/scramjet.js";
+        config.wasmPath = "/scram/scramjet.wasm";
+        const controller = new Controller({ serviceworker, transport });
+        await controller.wait();
+        return controller;
+      })().catch(error => {
+        proxyControllerPromise = null;
+        throw error;
+      });
+      return proxyControllerPromise;
+    }
+
+    function proxiedUrl(url, controller) {
+      const target = new URL(url, location.href);
+      if ((target.protocol !== "http:" && target.protocol !== "https:") || target.origin === location.origin) return null;
+      return `${controller.prefix}${controller.config.codec.encode(target.href)}`;
+    }
+
+    async function enableProxyFallback() {
+      const controller = await getProxyController();
+      if (!proxyFallback) {
+        const originalXhrOpen = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function(method, url, ...args) {
+          let requestUrl = url;
+          try { requestUrl = proxiedUrl(url, controller) || url; } catch {}
+          return originalXhrOpen.call(this, method, requestUrl, ...args);
+        };
+        window.fetch = (input, init) => {
+          let sourceUrl;
+          try { sourceUrl = input instanceof Request ? input.url : input; } catch { return nativeFetch(input, init); }
+          let targetUrl;
+          try { targetUrl = proxiedUrl(sourceUrl, controller); } catch { return nativeFetch(input, init); }
+          if (!targetUrl) return nativeFetch(input, init);
+          if (input instanceof Request) {
+            const request = new Request(targetUrl, input);
+            return nativeFetch(new Request(request, { ...init, credentials: "omit" }));
+          }
+          return nativeFetch(targetUrl, { ...init, credentials: "omit" });
+        };
+        proxyFallback = true;
+      }
+      return controller;
     }
 
     async function initialize(restart = false) {
@@ -134,9 +220,11 @@
         sdkReady = false;
       }
       retry.hidden = true;
+      proxyRetry.hidden = true;
       status.textContent = "Connecting to the game library…";
       initPromise = (async () => {
         try {
+          if (!window.Lumin && proxyFallback) await loadScript(`${(await getProxyController()).prefix}${window.$scramjetController.config.codec.encode("https://cdn.jsdelivr.net/gh/luminsdk/script@latest/lumin.min.js")}`);
           if (!window.Lumin) throw new Error("The LuminSDK script could not be loaded from jsDelivr.");
           let initError = null;
           await window.Lumin.init({
@@ -276,6 +364,24 @@
     retry.addEventListener("click", () => {
       if (sdkReady) loadPage(currentPage);
       else initialize(true);
+    });
+    proxyRetry.addEventListener("click", async () => {
+      proxyRetry.disabled = true;
+      proxyRetry.textContent = "Connecting through proxy…";
+      try {
+        await enableProxyFallback();
+        proxyRetry.hidden = true;
+        if (sdkReady) loadPage(currentPage);
+        else {
+          initPromise = null;
+          initialize(true);
+        }
+      } catch (error) {
+        reportError(error);
+      } finally {
+        proxyRetry.disabled = false;
+        proxyRetry.textContent = "Try over proxy";
+      }
     });
     document.querySelector("#player-back").addEventListener("click", closePlayer);
     document.addEventListener("keydown", event => { if (event.key === "Escape" && !player.hidden) closePlayer(); });
