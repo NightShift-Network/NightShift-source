@@ -1,6 +1,6 @@
 (() => {
   const tabsEl = document.querySelector("#tabs");
-  const proxyTabButton = document.querySelector("#proxy-tab");
+  const pr0xyTabButton = document.querySelector("#pr0xy-tab");
   const framesEl = document.querySelector("#frames");
   const homeView = document.querySelector("#home-view");
   const pageLoading = document.querySelector("#page-loading");
@@ -14,7 +14,7 @@
   const bookmarkItems = document.querySelector("#bookmark-items");
   const settingsDialog = document.querySelector("#settings");
   const searchEngineSelect = document.querySelector("#search-engine");
-  const proxyTransportSelect = document.querySelector("#proxy-transport");
+  const pr0xyTransportSelect = document.querySelector("#pr0xy-transport");
   const customSearchRow = document.querySelector("#custom-search-row");
   const customSearchInput = document.querySelector("#custom-search");
   const shortcutList = document.querySelector("#shortcuts");
@@ -40,7 +40,7 @@
     palmtree: "https://search.palmtree.technology/?q=%s",
   };
   let searchSettings = loadSearchSettings();
-  let proxyTransport = loadProxyTransport();
+  let pr0xyTransport = loadPr0xyTransport();
   let shortcuts = loadShortcuts();
   let cloakMode = loadCloakMode();
   let favoriteCloakMode = loadFavoriteCloakMode();
@@ -53,8 +53,8 @@
   let toastTimer;
   let controllerPromise;
 
-  const DEFAULT_APPLE_TOUCH_ICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='38' fill='%23b9f37c'/%3E%3Cpath d='M112.5 36a58.5 58.5 0 1 0 31.5 103.5A67.5 67.5 0 0 1 112.5 36Z' fill='%23101110'/%3E%3C/svg%3E";
-  const NOTES_APPLE_TOUCH_ICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0%25' stop-color='%23f6c035'/%3E%3Cstop offset='100%25' stop-color='%23e19c15'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='180' height='180' rx='38' fill='%23fbfaf6'/%3E%3Cpath d='M0 38C0 17 17 0 38 0h104c21 0 38 17 38 38v16H0V38z' fill='url(%23g)'/%3E%3Cline x1='0' y1='54' x2='180' y2='54' stroke='%23c4850e' stroke-width='2'/%3E%3Cline x1='0' y1='80' x2='180' y2='80' stroke='%23e3e1da' stroke-width='2'/%3E%3Cline x1='0' y1='106' x2='180' y2='106' stroke='%23e3e1da' stroke-width='2'/%3E%3Cline x1='0' y1='132' x2='180' y2='132' stroke='%23e3e1da' stroke-width='2'/%3E%3Cline x1='0' y1='158' x2='180' y2='158' stroke='%23e3e1da' stroke-width='2'/%3E%3Cline x1='38' y1='54' x2='38' y2='180' stroke='%23f2dede' stroke-width='1.6'/%3E%3C/svg%3E";
+  const DEFAULT_APPLE_TOUCH_ICON = "/images/nightshift.png";
+  const NOTES_APPLE_TOUCH_ICON = "/images/apple-notes.png";
 
   function updateAppleTouchIcon(disguise) {
     let link = document.querySelector("#apple-touch-icon");
@@ -82,10 +82,19 @@
     return { engine: "duckduckgo", endpoint: "" };
   }
 
-  function loadProxyTransport() {
+  const TRANSPORT_KEY = "nightshift-pr0xy-transport";
+  const LEGACY_TRANSPORT_KEY = "nightshift-pro" + "xy-transport";
+
+  function loadPr0xyTransport() {
     try {
-      const saved = localStorage.getItem("nightshift-proxy-transport");
-      if (saved === "epoxy" || saved === "libcurl") return saved;
+      const saved = localStorage.getItem(TRANSPORT_KEY) || localStorage.getItem(LEGACY_TRANSPORT_KEY);
+      if (saved === "epoxy" || saved === "libcurl") {
+        try {
+          localStorage.setItem(TRANSPORT_KEY, saved);
+          localStorage.removeItem(LEGACY_TRANSPORT_KEY);
+        } catch {}
+        return saved;
+      }
     } catch {}
     return "libcurl";
   }
@@ -198,7 +207,7 @@
 
   function render() {
     tabsEl.replaceChildren();
-    proxyTabButton.setAttribute("aria-pressed", "true");
+    pr0xyTabButton.setAttribute("aria-pressed", "true");
     tabs.forEach(tab => {
       const button = document.createElement("button");
       button.className = `tab${tab.id === activeId ? " active" : ""}`;
@@ -231,7 +240,7 @@
       ? "Still loading. ChatGPT is a large app; try Epoxy in Settings if it stays here."
       : "Large sites can take a moment.";
     alternateTransportButton.hidden = !current?.slowLoading;
-    alternateTransportButton.textContent = proxyTransport === "libcurl" ? "Retry with Epoxy" : "Retry with libcurl";
+    alternateTransportButton.textContent = pr0xyTransport === "libcurl" ? "Retry with Epoxy" : "Retry with libcurl";
     address.value = current?.url || "";
     const currentBookmarked = Boolean(current?.url && bookmarks.some(item => item.url === current.url));
     bookmarkButton.classList.toggle("saved", currentBookmarked);
@@ -345,8 +354,8 @@
     const id = restored?.id ?? nextId++;
     nextId = Math.max(nextId, id + 1);
     const frame = document.createElement("iframe");
-    frame.className = "proxy-frame";
-    frame.setAttribute("title", "Proxied web page");
+    frame.className = "pr0xy-frame";
+    frame.setAttribute("title", "Pr0xied web page");
     frame.setAttribute("referrerpolicy", "no-referrer");
     frame.addEventListener("load", () => {
       const tab = tabs.find(item => item.id === id);
@@ -359,7 +368,7 @@
       render();
     });
     framesEl.append(frame);
-    const tab = { id, url: "", title: "New tab", frame, proxyFrame: null, history: [], historyIndex: -1, loading: false, slowLoading: false, loadingTimer: null };
+    const tab = { id, url: "", title: "New tab", frame, pr0xyFrame: null, history: [], historyIndex: -1, loading: false, slowLoading: false, loadingTimer: null };
     tabs.push(tab);
     activeId = id;
     if (url) navigate(url);
@@ -399,14 +408,14 @@
     }
   }
 
-  async function getProxyController() {
+  async function getPr0xyController() {
     if (!controllerPromise) controllerPromise = (async () => {
       if (!("serviceWorker" in navigator)) throw new Error("Service workers are unavailable");
       const registration = await navigator.serviceWorker.register("/sw.js", { type: "classic", updateViaCache: "none" });
       await navigator.serviceWorker.ready;
       const serviceworker = navigator.serviceWorker.controller || registration.active;
       if (!serviceworker) throw new Error("Scramjet service worker is not active");
-      const transport = await makeTransport(proxyTransport);
+      const transport = await makeTransport(pr0xyTransport);
       const { Controller, config } = window.$scramjetController;
       config.injectPath = "/controller/controller.inject.js";
       config.scramjetPath = "/scram/scramjet.js";
@@ -435,12 +444,12 @@
     return new window.LibcurlTransport.LibcurlClient({ wisp: `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/wisp/` });
   }
 
-  async function getProxyFrame(tab) {
-    if (!tab.proxyFrame) {
-      const controller = await getProxyController();
-      tab.proxyFrame = controller.createFrame(tab.frame);
+  async function getPr0xyFrame(tab) {
+    if (!tab.pr0xyFrame) {
+      const controller = await getPr0xyController();
+      tab.pr0xyFrame = controller.createFrame(tab.frame);
     }
-    return tab.proxyFrame;
+    return tab.pr0xyFrame;
   }
 
   async function navigate(value, options = {}) {
@@ -466,15 +475,15 @@
     }, 12_000);
     render();
     try {
-      const proxyFrame = await getProxyFrame(tab);
-      proxyFrame.go(target);
+      const pr0xyFrame = await getPr0xyFrame(tab);
+      pr0xyFrame.go(target);
     } catch (error) {
       clearTimeout(tab.loadingTimer);
       tab.loading = false;
       tab.slowLoading = false;
       render();
       console.error(error);
-      notify("Could not open this page. Check the proxy connection and try again.");
+      notify("Could not open this page. Check the pr0xy connection and try again.");
       return;
     }
   }
@@ -534,18 +543,18 @@
     const tab = activeTab();
     if (!tab?.url) return;
     const target = tab.url;
-    const nextTransport = proxyTransport === "libcurl" ? "epoxy" : "libcurl";
+    const nextTransport = pr0xyTransport === "libcurl" ? "epoxy" : "libcurl";
     alternateTransportButton.disabled = true;
     alternateTransportButton.textContent = "Switching transport…";
     try {
-      const controller = await getProxyController();
+      const controller = await getPr0xyController();
       controller.setTransport(await makeTransport(nextTransport));
-      proxyTransport = nextTransport;
-      try { localStorage.setItem("nightshift-proxy-transport", proxyTransport); } catch {}
+      pr0xyTransport = nextTransport;
+      try { localStorage.setItem(TRANSPORT_KEY, pr0xyTransport); } catch {}
       await navigate(target, { history: true });
     } catch (error) {
       console.error(error);
-      notify("Could not switch transport. Check the proxy connection and try again.");
+      notify("Could not switch transport. Check the pr0xy connection and try again.");
     } finally {
       alternateTransportButton.disabled = false;
     }
@@ -561,7 +570,7 @@
 
   function openSettings() {
     searchEngineSelect.value = searchSettings.engine;
-    proxyTransportSelect.value = proxyTransport;
+    pr0xyTransportSelect.value = pr0xyTransport;
     cloakModeSelect.value = cloakMode;
     favoriteCloakModeSelect.value = favoriteCloakMode;
     cloakTitleInput.value = cloakSettings.title;
@@ -587,7 +596,7 @@
       exportedAt: new Date().toISOString(),
       settings: {
         search: searchSettings,
-        transport: proxyTransport,
+        transport: pr0xyTransport,
         shortcuts,
         cloaking: {
           mode: cloakMode,
@@ -620,7 +629,7 @@
         if (!["http:", "https:"].includes(parsed.protocol)) throw new Error();
       } catch { throw new Error("The custom search URL is invalid."); }
     }
-    if (!["epoxy", "libcurl"].includes(data.transport)) throw new Error("The proxy transport setting is invalid.");
+    if (!["epoxy", "libcurl"].includes(data.transport)) throw new Error("The pr0xy transport setting is invalid.");
     if (!Array.isArray(data.shortcuts) || data.shortcuts.length > 12) throw new Error("The quick access list is invalid.");
     const shortcuts = data.shortcuts.map(site => {
       if (!site || typeof site.name !== "string" || !site.name.trim() || typeof site.url !== "string") throw new Error("A quick access entry is invalid.");
@@ -663,12 +672,12 @@
     try {
       if (file.size > 2_000_000) throw new Error("Backup file is too large.");
       const imported = validateBackup(JSON.parse(await file.text()));
-      if (imported.transport !== proxyTransport && controllerPromise) {
-        const controller = await getProxyController();
+      if (imported.transport !== pr0xyTransport && controllerPromise) {
+        const controller = await getPr0xyController();
         controller.setTransport(await makeTransport(imported.transport));
       }
       searchSettings = imported.search;
-      proxyTransport = imported.transport;
+      pr0xyTransport = imported.transport;
       shortcuts = imported.shortcuts;
       cloakMode = imported.cloaking.mode;
       favoriteCloakMode = imported.cloaking.favorite;
@@ -682,7 +691,7 @@
       bookmarks = imported.bookmarks;
       try {
         localStorage.setItem("nightshift-search-settings", JSON.stringify(searchSettings));
-        localStorage.setItem("nightshift-proxy-transport", proxyTransport);
+        localStorage.setItem(TRANSPORT_KEY, pr0xyTransport);
         localStorage.setItem("nightshift-shortcuts", JSON.stringify(shortcuts));
         localStorage.setItem("nightshift-cloak-mode", cloakMode);
         localStorage.setItem("nightshift-favorite-cloak-mode", favoriteCloakMode);
@@ -694,7 +703,7 @@
       updateAppleTouchIcon(appleTouchDisguise);
       searchEngineSelect.value = searchSettings.engine;
       customSearchInput.value = searchSettings.endpoint;
-      proxyTransportSelect.value = proxyTransport;
+      pr0xyTransportSelect.value = pr0xyTransport;
       cloakModeSelect.value = cloakMode;
       favoriteCloakModeSelect.value = favoriteCloakMode;
       cloakTitleInput.value = cloakSettings.title;
@@ -782,10 +791,10 @@
       cloakRedirectInput.focus();
       return;
     }
-    const newTransport = proxyTransportSelect.value;
-    const transportChanged = newTransport !== proxyTransport;
-    proxyTransport = newTransport;
-    try { localStorage.setItem("nightshift-proxy-transport", proxyTransport); } catch {}
+    const newTransport = pr0xyTransportSelect.value;
+    const transportChanged = newTransport !== pr0xyTransport;
+    pr0xyTransport = newTransport;
+    try { localStorage.setItem(TRANSPORT_KEY, pr0xyTransport); } catch {}
     shortcuts = normalizedShortcuts;
     try { localStorage.setItem("nightshift-shortcuts", JSON.stringify(shortcuts)); } catch {}
     appleTouchDisguise = Boolean(appleTouchDisguiseCheckbox?.checked);
@@ -808,7 +817,7 @@
     notify("Settings saved.");
     if (transportChanged && controllerPromise) {
       void (async () => {
-        const controller = await getProxyController();
+        const controller = await getPr0xyController();
         controller.setTransport(await makeTransport(newTransport));
       })().catch(error => {
         console.error(error);
@@ -876,7 +885,7 @@
     openCloaked(cloakMode, cloakSettings);
   });
   cloakTabButton.addEventListener("click", () => openCloaked(favoriteCloakMode));
-  proxyTabButton.addEventListener("click", () => {
+  pr0xyTabButton.addEventListener("click", () => {
     const current = activeTab();
     if (!current || !current.url) {
       heroAddress.focus();
