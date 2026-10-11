@@ -21,6 +21,8 @@
   const shortcutEditor = document.querySelector("#shortcut-editor");
   const cloakModeSelect = document.querySelector("#cloak-mode");
   const favoriteCloakModeSelect = document.querySelector("#favorite-cloak-mode");
+  const autoCloakCheckbox = document.querySelector("#auto-cloak");
+  const appleTouchDisguiseCheckbox = document.querySelector("#apple-touch-disguise");
   const cloakTitleInput = document.querySelector("#cloak-title");
   const cloakIconInput = document.querySelector("#cloak-icon");
   const cloakRedirectInput = document.querySelector("#cloak-redirect");
@@ -43,12 +45,28 @@
   let cloakMode = loadCloakMode();
   let favoriteCloakMode = loadFavoriteCloakMode();
   let cloakSettings = loadCloakSettings();
+  let appleTouchDisguise = loadAppleTouchDisguise();
   let bookmarks = loadBookmarks();
   let tabs = [];
   let activeId = null;
   let nextId = 1;
   let toastTimer;
   let controllerPromise;
+
+  const DEFAULT_APPLE_TOUCH_ICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='38' fill='%23b9f37c'/%3E%3Cpath d='M112.5 36a58.5 58.5 0 1 0 31.5 103.5A67.5 67.5 0 0 1 112.5 36Z' fill='%23101110'/%3E%3C/svg%3E";
+  const NOTES_APPLE_TOUCH_ICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0%25' stop-color='%23f6c035'/%3E%3Cstop offset='100%25' stop-color='%23e19c15'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='180' height='180' rx='38' fill='%23fbfaf6'/%3E%3Cpath d='M0 38C0 17 17 0 38 0h104c21 0 38 17 38 38v16H0V38z' fill='url(%23g)'/%3E%3Cline x1='0' y1='54' x2='180' y2='54' stroke='%23c4850e' stroke-width='2'/%3E%3Cline x1='0' y1='80' x2='180' y2='80' stroke='%23e3e1da' stroke-width='2'/%3E%3Cline x1='0' y1='106' x2='180' y2='106' stroke='%23e3e1da' stroke-width='2'/%3E%3Cline x1='0' y1='132' x2='180' y2='132' stroke='%23e3e1da' stroke-width='2'/%3E%3Cline x1='0' y1='158' x2='180' y2='158' stroke='%23e3e1da' stroke-width='2'/%3E%3Cline x1='38' y1='54' x2='38' y2='180' stroke='%23f2dede' stroke-width='1.6'/%3E%3C/svg%3E";
+
+  function updateAppleTouchIcon(disguise) {
+    let link = document.querySelector("#apple-touch-icon");
+    if (!link) {
+      link = document.createElement("link");
+      link.id = "apple-touch-icon";
+      link.rel = "apple-touch-icon";
+      document.head.append(link);
+    }
+    link.href = disguise ? NOTES_APPLE_TOUCH_ICON : DEFAULT_APPLE_TOUCH_ICON;
+  }
+  updateAppleTouchIcon(appleTouchDisguise);
 
   const icon = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>`;
   const activeTab = () => tabs.find(tab => tab.id === activeId);
@@ -116,10 +134,18 @@
           title: typeof saved.title === "string" ? saved.title.slice(0, 64) : "Nightshift",
           icon: typeof saved.icon === "string" ? saved.icon : "",
           redirect: normalizeCloakRedirect(saved.redirect) || "https://www.google.com/",
+          autoCloak: Boolean(saved.autoCloak),
         };
       }
     } catch {}
-    return { title: "Nightshift", icon: "", redirect: "https://www.google.com/" };
+    return { title: "Nightshift", icon: "", redirect: "https://www.google.com/", autoCloak: false };
+  }
+
+  function loadAppleTouchDisguise() {
+    try {
+      return localStorage.getItem("nightshift-apple-touch-disguise") === "true";
+    } catch {}
+    return false;
   }
 
   function normalizeCloakRedirect(value) {
@@ -541,6 +567,8 @@
     cloakTitleInput.value = cloakSettings.title;
     cloakIconInput.value = cloakSettings.icon;
     cloakRedirectInput.value = cloakSettings.redirect;
+    if (autoCloakCheckbox) autoCloakCheckbox.checked = Boolean(cloakSettings.autoCloak);
+    if (appleTouchDisguiseCheckbox) appleTouchDisguiseCheckbox.checked = Boolean(appleTouchDisguise);
     customSearchInput.value = searchSettings.endpoint;
     renderShortcutEditor();
     showCustomSearchSetting();
@@ -561,7 +589,12 @@
         search: searchSettings,
         transport: proxyTransport,
         shortcuts,
-        cloaking: { mode: cloakMode, favorite: favoriteCloakMode, ...cloakSettings },
+        cloaking: {
+          mode: cloakMode,
+          favorite: favoriteCloakMode,
+          ...cloakSettings,
+          appleTouchDisguise,
+        },
         bookmarks,
       },
     };
@@ -613,7 +646,15 @@
       search: { engine: search.engine, endpoint: search.endpoint.slice(0, 2048) },
       transport: data.transport,
       shortcuts,
-      cloaking: { mode: cloaking.mode, favorite: favoriteCloakMode, title: cloaking.title.slice(0, 64) || "Nightshift", icon: cloaking.icon.slice(0, 2048), redirect: cloakRedirect },
+      cloaking: {
+        mode: cloaking.mode,
+        favorite: favoriteCloakMode,
+        title: cloaking.title.slice(0, 64) || "Nightshift",
+        icon: cloaking.icon.slice(0, 2048),
+        redirect: cloakRedirect,
+        autoCloak: Boolean(cloaking.autoCloak),
+        appleTouchDisguise: Boolean(cloaking.appleTouchDisguise),
+      },
       bookmarks,
     };
   }
@@ -631,7 +672,13 @@
       shortcuts = imported.shortcuts;
       cloakMode = imported.cloaking.mode;
       favoriteCloakMode = imported.cloaking.favorite;
-      cloakSettings = { title: imported.cloaking.title, icon: imported.cloaking.icon, redirect: imported.cloaking.redirect };
+      cloakSettings = {
+        title: imported.cloaking.title,
+        icon: imported.cloaking.icon,
+        redirect: imported.cloaking.redirect,
+        autoCloak: Boolean(imported.cloaking.autoCloak),
+      };
+      appleTouchDisguise = Boolean(imported.cloaking.appleTouchDisguise);
       bookmarks = imported.bookmarks;
       try {
         localStorage.setItem("nightshift-search-settings", JSON.stringify(searchSettings));
@@ -640,9 +687,11 @@
         localStorage.setItem("nightshift-cloak-mode", cloakMode);
         localStorage.setItem("nightshift-favorite-cloak-mode", favoriteCloakMode);
         localStorage.setItem("nightshift-cloak-settings", JSON.stringify(cloakSettings));
+        localStorage.setItem("nightshift-apple-touch-disguise", String(appleTouchDisguise));
         localStorage.setItem("nightshift-bookmarks", JSON.stringify(bookmarks));
       } catch { throw new Error("Browser storage is full; imported settings could not be saved."); }
       updateSearchPlaceholder();
+      updateAppleTouchIcon(appleTouchDisguise);
       searchEngineSelect.value = searchSettings.engine;
       customSearchInput.value = searchSettings.endpoint;
       proxyTransportSelect.value = proxyTransport;
@@ -651,6 +700,8 @@
       cloakTitleInput.value = cloakSettings.title;
       cloakIconInput.value = cloakSettings.icon;
       cloakRedirectInput.value = cloakSettings.redirect;
+      if (autoCloakCheckbox) autoCloakCheckbox.checked = Boolean(cloakSettings.autoCloak);
+      if (appleTouchDisguiseCheckbox) appleTouchDisguiseCheckbox.checked = Boolean(appleTouchDisguise);
       renderShortcutEditor();
       showCustomSearchSetting();
       render();
@@ -737,11 +788,17 @@
     try { localStorage.setItem("nightshift-proxy-transport", proxyTransport); } catch {}
     shortcuts = normalizedShortcuts;
     try { localStorage.setItem("nightshift-shortcuts", JSON.stringify(shortcuts)); } catch {}
-    cloakMode = cloakModeSelect.value;
-    try { localStorage.setItem("nightshift-cloak-mode", cloakMode); } catch {}
-    favoriteCloakMode = favoriteCloakModeSelect.value;
-    try { localStorage.setItem("nightshift-favorite-cloak-mode", favoriteCloakMode); } catch {}
-    cloakSettings = { title: cloakTitleInput.value.trim().slice(0, 64) || "Nightshift", icon: cloakIconInput.value.trim(), redirect: cloakRedirect };
+    appleTouchDisguise = Boolean(appleTouchDisguiseCheckbox?.checked);
+    try { localStorage.setItem("nightshift-apple-touch-disguise", String(appleTouchDisguise)); } catch {}
+    updateAppleTouchIcon(appleTouchDisguise);
+
+    const autoCloak = Boolean(autoCloakCheckbox?.checked);
+    cloakSettings = {
+      title: cloakTitleInput.value.trim().slice(0, 64) || "Nightshift",
+      icon: cloakIconInput.value.trim(),
+      redirect: cloakRedirect,
+      autoCloak,
+    };
     try { localStorage.setItem("nightshift-cloak-settings", JSON.stringify(cloakSettings)); } catch {}
     searchSettings = { engine, endpoint };
     try { localStorage.setItem("nightshift-search-settings", JSON.stringify(searchSettings)); } catch {}
@@ -865,5 +922,16 @@
   updateSearchPlaceholder();
   setInterval(updateClock, 60_000);
 
+  function checkAutoCloak() {
+    if (window.self !== window.top) return;
+    const params = new URLSearchParams(location.search);
+    if (params.has("nocloak") || params.has("cloaked")) return;
+    if (!cloakSettings.autoCloak) return;
+    if (sessionStorage.getItem("nightshift-autocloak-attempted")) return;
+    sessionStorage.setItem("nightshift-autocloak-attempted", "1");
+    openCloaked(favoriteCloakMode);
+  }
+
   createTab();
+  checkAutoCloak();
 })();

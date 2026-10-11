@@ -193,16 +193,17 @@ label[for="cloak-title"]{margin-top:16px}
 
   .toolbar {
     height: 48px;
-    padding: 0 max(8px, env(safe-area-inset-left));
+    padding: 0 4px 0 max(6px, env(safe-area-inset-left));
     gap: 6px;
   }
 
   .nav-controls {
-    gap: 2px;
+    gap: 1px;
+    flex: none;
   }
 
   .nav-controls .icon-button {
-    width: 30px;
+    width: 29px;
     height: 30px;
     border-radius: 6px;
     -webkit-tap-highlight-color: transparent;
@@ -219,10 +220,11 @@ label[for="cloak-title"]{margin-top:16px}
   }
 
   .address-form {
-    height: 36px;
-    padding: 0 9px;
+    height: 38px;
+    padding: 0 10px;
     gap: 7px;
-    border-radius: 8px;
+    border-radius: 14px;
+    margin-right: max(2px, env(safe-area-inset-right));
   }
 
   .address-lock svg {
@@ -289,16 +291,18 @@ label[for="cloak-title"]{margin-top:16px}
   }
 
   .hero-search {
-    height: 48px;
+    height: 50px;
+    width: 100%;
+    max-width: 100%;
     margin: 16px auto 0;
-    padding: 0 6px 0 12px;
+    padding: 0 6px 0 14px;
     gap: 8px;
-    border-radius: 9px;
+    border-radius: 18px;
   }
 
   .hero-search svg {
-    width: 15px;
-    height: 15px;
+    width: 16px;
+    height: 16px;
   }
 
   .hero-search input {
@@ -306,10 +310,10 @@ label[for="cloak-title"]{margin-top:16px}
   }
 
   .hero-search button {
-    height: 36px;
-    padding: 0 12px;
+    height: 38px;
+    padding: 0 13px;
     font-size: 12px;
-    border-radius: 7px;
+    border-radius: 12px;
     -webkit-tap-highlight-color: transparent;
   }
 
@@ -393,6 +397,24 @@ label[for="cloak-title"]{margin-top:16px}
 }
 
 @media (max-width: 480px) {
+  .home-view {
+    padding: 0 max(8px, env(safe-area-inset-left));
+  }
+
+  .toolbar {
+    padding-left: max(4px, env(safe-area-inset-left));
+    padding-right: max(2px, env(safe-area-inset-right));
+    gap: 4px;
+  }
+
+  .address-form {
+    border-radius: 14px;
+  }
+
+  .hero-search {
+    border-radius: 18px;
+  }
+
   .shortcuts {
     grid-template-columns: 1fr;
     gap: 8px;
@@ -502,8 +524,17 @@ html.is-mobile .address-form kbd {
   display: none;
 }
 
-html.is-mobile .toolbar .bookmark {
-  display: none;
+html.is-mobile .toolbar {
+  padding: 0 4px 0 max(6px, env(safe-area-inset-left));
+}
+
+html.is-mobile .address-form {
+  border-radius: 14px;
+  margin-right: max(2px, env(safe-area-inset-right));
+}
+
+html.is-mobile .hero-search {
+  border-radius: 18px;
 }
 
 html.is-mobile .address-form input,
@@ -512,4 +543,28 @@ html.is-mobile .settings-select,
 html.is-mobile .settings-input {
   font-size: 16px;
 }
+
+.settings-checkbox-row {
+  margin-top: 14px;
+}
+
+.settings-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #dce1d8;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+
+.settings-checkbox-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--lime);
+  cursor: pointer;
+  border-radius: 4px;
+}
+
 
