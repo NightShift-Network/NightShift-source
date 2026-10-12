@@ -10,9 +10,10 @@ NightShift is a Node.js/Express proxy. `server.js` serves the app and routes `/w
 - `npm start` runs NightShift on port 3000; set `PORT` to change it.
 - `npm run build:proxy -- /path/to/output` creates the minified and obfuscated distribution in a separate output directory.
 - `npm run publish:proxy` builds and pushes the distribution to `NightShift-Network/NightShift-proxy`.
+- `./publish.sh` checks the local publish prerequisites, installs dependencies, and runs the full proxy publish.
 - PM2 deployments should restart the named process after server changes: `pm2 restart nightshift`.
 
-No lint or automated test scripts are configured. Before publishing, install the frontend transformation tools locally with `npm install --no-save --package-lock=false clean-css@5 html-minifier-terser@7 javascript-obfuscator@4`.
+No lint or automated test scripts are configured. `publish.sh` installs the frontend transformation tools before publishing.
 
 ## Style and Testing
 
@@ -40,12 +41,10 @@ Keep secrets and host-specific settings out of source control; use environment v
 
 `NightShift-source` is the canonical, readable source repository. `NightShift-proxy` receives generated files; JavaScript in `public/` is obfuscated, HTML and CSS are minified, and `SOURCE_COMMIT.txt` records the source revision. Publish only from the source checkout. Commit source changes before publishing so the generated files and recorded revision match committed source.
 
-Add `PROXY_REPO_TOKEN=<token>` to the local, uncommitted `.env`, then run:
+Add `PROXY_REPO_TOKEN=<token>` to the local, uncommitted `.env`, commit source changes, then run:
 
 ```sh
-npm install
-npm install --no-save --package-lock=false clean-css@5 html-minifier-terser@7 javascript-obfuscator@4
-npm run publish:proxy
+./publish.sh
 ```
 
 The publish script clones the distribution repo in a temporary directory, updates generated files, commits changes, and pushes `main`. Do not copy distribution files back into the source repo. To create a local build without publishing, use `npm run build:proxy -- /path/to/output`.
