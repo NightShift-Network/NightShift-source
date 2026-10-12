@@ -85,7 +85,7 @@ Compatibility varies; sites may limit proxy traffic or rely on browser features 
 
 ## How It Is Built
 
-Nightshift is built with Node.js and ES modules. The server uses Express to serve the static browser app and the Scramjet, controller, Epoxy, and libcurl assets; Wisp handles the `/wisp/` WebSocket transport. The frontend is plain HTML, CSS, and browser JavaScript in `public/`, with no frontend build step. Scramjet runs proxied pages in the browser. The separate `public/games.html` page uses LuminSDK's headless methods to render its interactive entertainment catalog and player. Bookmarks and preferences are stored in browser `localStorage`. The server port is selected with `PORT` (default `3000`).
+Nightshift is built with Node.js and ES modules. The server uses Express to serve the static browser app and the Scramjet, controller, Epoxy, and libcurl assets; Wisp handles the `/wisp/` WebSocket transport. The frontend is plain HTML, CSS, and browser JavaScript in `public/`, with no frontend build step. Scramjet runs proxied pages in the browser. The separate `public/entertainment.html` page uses LuminSDK's headless methods to render its interactive entertainment catalog and player. Bookmarks and preferences are stored in browser `localStorage`. The server port is selected with `PORT` (default `3000`).
 
 ## Source and Proxy Repositories
 

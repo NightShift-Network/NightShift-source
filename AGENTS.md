@@ -2,7 +2,7 @@
 
 ## Project Structure
 
-NightShift is a Node.js/Express proxy. `server.js` serves the app, a styled 404 page for unmatched routes, and `/wisp/` WebSocket upgrades. `public/` holds the interface and Scramjet service worker; `index.html`, `style.css`, and `app.js` make up the proxy UI, while `games.html` is a separate full-page, headless LuminSDK interactive entertainment catalog and player. The main UI has full-screen sidebar sections for Browser, Play, and quick cloaking. Epoxy and libcurl are selectable transports. Frontend development uses the plain files in `public/`; `scripts/publish-proxy.mjs` transforms them for the public distribution repository.
+NightShift is a Node.js/Express proxy. `server.js` serves the app, a styled 404 page for unmatched routes, and `/wisp/` WebSocket upgrades. `public/` holds the interface and Scramjet service worker; `index.html`, `style.css`, and `app.js` make up the proxy UI, while `entertainment.html` is a separate full-page, headless LuminSDK interactive entertainment catalog and player. The main UI has full-screen sidebar sections for Browser, Play, and quick cloaking. Epoxy and libcurl are selectable transports. Frontend development uses the plain files in `public/`; `scripts/publish-proxy.mjs` transforms them for the public distribution repository.
 
 ## Development Commands
 
@@ -17,7 +17,7 @@ No lint or automated test scripts are configured. `publish.sh` installs the fron
 
 ## Style and Testing
 
-Use two spaces in JavaScript, JSON, HTML, and CSS. Use server ES modules, `camelCase` in JavaScript, and kebab-case for CSS classes and IDs. Keep dependencies minimal and follow existing `localStorage` patterns for bookmarks, search, shortcuts, and settings. The bookmarks bar should remain hidden when the saved list is empty. No test framework is configured; document commands for tests added under `tests/`. Manually check affected UI and proxy behavior. For Interactive Entertainment changes, check search, pagination, launch/close, and dark styling in `/games.html`.
+Use two spaces in JavaScript, JSON, HTML, and CSS. Use server ES modules, `camelCase` in JavaScript, and kebab-case for CSS classes and IDs. Keep dependencies minimal and follow existing `localStorage` patterns for bookmarks, search, shortcuts, and settings. The bookmarks bar should remain hidden when the saved list is empty. No test framework is configured; document commands for tests added under `tests/`. Manually check affected UI and proxy behavior. For Interactive Entertainment changes, check search, pagination, launch/close, and dark styling in `/entertainment.html`.
 
 ## Changes and Reviews
 
@@ -62,7 +62,7 @@ Treat the proxy repository as generated output: make fixes in `NightShift-source
 
 ## Interactive Entertainment and Service Worker
 
-The Play link opens `public/games.html`, whose page title is Interactive Entertainment. It uses LuminSDK headless mode (catalog UI is custom-built; `init({ headless: true })`) and builds its themed catalog/player with `getGames`, `getImageUrl`, and `getGameUrl`; the standard UI is inside Shadow DOM. Entertainment URLs are single-use; request a fresh one per launch. The player offers a "Route through browser" toggle that reroutes the active game through NightShift (a fresh single-use URL is requested per switch); games stay direct by default. "Try in browser" loads the Lumin SDK and its API through the proxy via a registered Scramjet frame. The free catalog's games are ad-supported from inside the game pages (cross-origin iframes); LuminSDK exposes no ad-free option, so ad removal is a visitor-side ad blocker, not SDK or proxy code. `public/sw.js` routes Scramjet's same-origin requests, proxies static cross-origin subresources (images, fonts, audio, and video) from proxied browser frames, and passes SDK/API requests directly to the browser. Preserve the interactive entertainment bypass. For Lumin failures, inspect Firefox Network details; cross-origin `responseStatus: 0` alone does not prove failure.
+The Play link opens `public/entertainment.html`, whose page title is Interactive Entertainment. It uses LuminSDK headless mode (catalog UI is custom-built; `init({ headless: true })`) and builds its themed catalog/player with `getGames`, `getImageUrl`, and `getGameUrl`; the standard UI is inside Shadow DOM. Entertainment URLs are single-use; request a fresh one per launch. The player offers a "Route through browser" toggle that reroutes the active game through NightShift (a fresh single-use URL is requested per switch); games stay direct by default. "Try in browser" loads the Lumin SDK and its API through the proxy via a registered Scramjet frame. The free catalog's games are ad-supported from inside the game pages (cross-origin iframes); LuminSDK exposes no ad-free option, so ad removal is a visitor-side ad blocker, not SDK or proxy code. `public/sw.js` routes Scramjet's same-origin requests, proxies static cross-origin subresources (images, fonts, audio, and video) from proxied browser frames, and passes SDK/API requests directly to the browser. Preserve the interactive entertainment bypass. For Lumin failures, inspect Firefox Network details; cross-origin `responseStatus: 0` alone does not prove failure.
 
 ## Current Interface Features
 
