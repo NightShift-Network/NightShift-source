@@ -502,7 +502,12 @@
       clearTimeout(tab.loadingTimer);
       tab.loading = false;
       tab.slowLoading = false;
-      if (tab.title === "Loading…") tab.title = new URL(tab.url).hostname.replace(/^www\./, "");
+      if (tab.title === "Loading…") {
+        // Proxied frames are same-origin, so the document title is readable.
+        let pageTitle = "";
+        try { pageTitle = tab.frame.contentDocument?.title?.trim() || ""; } catch {}
+        tab.title = pageTitle || new URL(tab.url).hostname.replace(/^www\./, "");
+      }
       updateBookmarkForTab(tab);
       rememberSiteTransport(tab.url, activeTransport);
       render();
