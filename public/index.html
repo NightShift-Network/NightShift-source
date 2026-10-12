@@ -167,7 +167,21 @@
             <option value="epoxy">Epoxy</option>
           </select>
           <p class="settings-help">Choose how Nightshift connects to websites. The change applies to open tabs.</p>
+          <div class="settings-checkbox-row">
+            <label class="settings-checkbox-label" for="sync-xhr">
+              <input id="sync-xhr" type="checkbox">
+              <span>Allow synchronous XHR for older sites</span>
+            </label>
+            <p class="settings-help">Helps legacy sites that still use synchronous script loading. Applies after a reload.</p>
+          </div>
         </div>
+        </section>
+        <section class="settings-section">
+          <h3>Diagnostics</h3>
+          <p class="settings-help">Copy connection details and recent errors when a site will not load.</p>
+          <div class="backup-actions">
+            <button id="copy-diagnostics" class="settings-add" type="button">Copy diagnostics</button>
+          </div>
         </section>
         <section class="settings-section">
           <h3>Backup</h3>

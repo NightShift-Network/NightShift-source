@@ -15,6 +15,7 @@
   const settingsDialog = document.querySelector("#settings");
   const searchEngineSelect = document.querySelector("#search-engine");
   const browserTransportSelect = document.querySelector("#browser-transport");
+  const syncXhrCheckbox = document.querySelector("#sync-xhr");
   const customSearchRow = document.querySelector("#custom-search-row");
   const customSearchInput = document.querySelector("#custom-search");
   const shortcutList = document.querySelector("#shortcuts");
@@ -41,6 +42,7 @@
   };
   let searchSettings = loadSearchSettings();
   let browserTransport = loadBrowserTransport();
+  let syncXhr = loadSyncXhr();
   let shortcuts = loadShortcuts();
   let cloakMode = loadCloakMode();
   let favoriteCloakMode = loadFavoriteCloakMode();
@@ -84,6 +86,68 @@
 
   const TRANSPORT_KEY = "nightshift-browser-transport";
   const LEGACY_TRANSPORT_KEYS = ["nightshift-pr" + "0xy-transport", "nightshift-pro" + "xy-transport"];
+
+  const SYNC_XHR_KEY = "nightshift-sync-xhr";
+
+  function loadSyncXhr() {
+    try {
+      return localStorage.getItem(SYNC_XHR_KEY) === "true";
+    } catch {}
+    return false;
+  }
+
+  // Keep a small buffer of page errors so the diagnostics dump has something
+  // useful to share when a site will not load.
+  const diagnosticErrors = [];
+
+  function recordDiagnostic(message) {
+    diagnosticErrors.push({ at: new Date().toISOString(), message: String(message) });
+    if (diagnosticErrors.length > 8) diagnosticErrors.shift();
+  }
+
+  window.addEventListener("error", event => recordDiagnostic(event.message || "Unknown page error"));
+  window.addEventListener("unhandledrejection", event => recordDiagnostic(event.reason || "Unhandled promise rejection"));
+
+  function buildDiagnostics() {
+    const lines = [
+      "NightShift diagnostics",
+      `Generated: ${new Date().toISOString()}`,
+      `URL: ${location.href}`,
+      `User agent: ${navigator.userAgent}`,
+      `Transport: ${browserTransport}`,
+      `Sync XHR support: ${syncXhr ? "on" : "off"}`,
+      `Service worker: ${"serviceWorker" in navigator ? (navigator.serviceWorker.controller ? "controlling" : "registered") : "unavailable"}`,
+      `Scramjet: ${typeof window.$scramjet === "undefined" ? "not loaded" : "loaded"}`,
+      `Controller: ${typeof window.$scramjetController === "undefined" ? "not loaded" : "loaded"}`,
+      `Wisp endpoint: ${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/wisp/`,
+      `Screen: ${window.screen?.width || "?"}x${window.screen?.height || "?"}`,
+    ];
+    if (diagnosticErrors.length > 0) {
+      lines.push("Recent errors:");
+      diagnosticErrors.forEach(({ at, message }) => lines.push(`  ${at} ${message}`));
+    } else {
+      lines.push("Recent errors: none recorded");
+    }
+    return lines.join("\n");
+  }
+
+  async function copyDiagnostics() {
+    const text = buildDiagnostics();
+    try {
+      await navigator.clipboard.writeText(text);
+      notify("Diagnostics copied.");
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.setAttribute("readonly", "");
+      document.body.append(textarea);
+      textarea.select();
+      let copied = false;
+      try { copied = document.execCommand("copy"); } catch {}
+      textarea.remove();
+      notify(copied ? "Diagnostics copied." : "Could not copy diagnostics.");
+    }
+  }
 
   function loadBrowserTransport() {
     try {
@@ -420,7 +484,17 @@
       config.injectPath = "/controller/controller.inject.js";
       config.scramjetPath = "/scram/scramjet.js";
       config.wasmPath = "/scram/scramjet.wasm";
-      const controller = new Controller({ serviceworker, transport });
+      const controller = new Controller({
+        serviceworker,
+        transport,
+        scramjetConfig: {
+          flags: {
+            captureErrors: true,
+            cleanErrors: true,
+            syncxhr: syncXhr,
+          },
+        },
+      });
       await controller.wait();
       return controller;
     })();
@@ -571,6 +645,7 @@
   function openSettings() {
     searchEngineSelect.value = searchSettings.engine;
     browserTransportSelect.value = browserTransport;
+    if (syncXhrCheckbox) syncXhrCheckbox.checked = syncXhr;
     cloakModeSelect.value = cloakMode;
     favoriteCloakModeSelect.value = favoriteCloakMode;
     cloakTitleInput.value = cloakSettings.title;
@@ -729,6 +804,7 @@
   });
   searchEngineSelect.addEventListener("change", showCustomSearchSetting);
   document.querySelector("#export-settings").addEventListener("click", exportBackup);
+  document.querySelector("#copy-diagnostics").addEventListener("click", copyDiagnostics);
   const importSettingsFile = document.querySelector("#import-settings-file");
   document.querySelector("#import-settings").addEventListener("click", () => importSettingsFile.click());
   importSettingsFile.addEventListener("change", () => {
@@ -795,6 +871,10 @@
     const transportChanged = newTransport !== browserTransport;
     browserTransport = newTransport;
     try { localStorage.setItem(TRANSPORT_KEY, browserTransport); } catch {}
+    const newSyncXhr = Boolean(syncXhrCheckbox?.checked);
+    const syncXhrChanged = newSyncXhr !== syncXhr;
+    syncXhr = newSyncXhr;
+    try { localStorage.setItem(SYNC_XHR_KEY, String(syncXhr)); } catch {}
     shortcuts = normalizedShortcuts;
     try { localStorage.setItem("nightshift-shortcuts", JSON.stringify(shortcuts)); } catch {}
     appleTouchDisguise = Boolean(appleTouchDisguiseCheckbox?.checked);
@@ -815,6 +895,7 @@
     renderShortcuts();
     closeSettings();
     notify("Settings saved.");
+    if (syncXhrChanged) notify("Settings saved. Reload Nightshift to apply sync XHR support.");
     if (transportChanged && controllerPromise) {
       void (async () => {
         const controller = await getBrowserController();

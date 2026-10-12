@@ -91,7 +91,7 @@
     <div class="session"><span class="session-dot" aria-hidden="true"></span><span>NIGHTSHIFT ARCADE</span></div>
   </header>
   <main>
-    <div class="heading"><span class="kicker">INTERACTIVE ENTERTAINMENT</span><h1>Interactive Entertainment</h1><p>Pick an experience and settle in.</p></div>
+    <div class="heading"><span class="kicker">INTERACTIVE ENTERTAINMENT</span><h1>Interactive Entertainment</h1><p>Pick entertainment to play.</p></div>
     <div class="games-toolbar"><label class="search"><span aria-hidden="true">⌕</span><input id="game-search" type="search" placeholder="Search interactive entertainment" autocomplete="off"></label></div>
     <p id="status" role="status" aria-live="polite">Connecting to interactive entertainment…</p>
     <div id="games-grid" aria-live="polite"></div>
@@ -171,7 +171,19 @@
         config.injectPath = "/controller/controller.inject.js";
         config.scramjetPath = "/scram/scramjet.js";
         config.wasmPath = "/scram/scramjet.wasm";
-        const controller = new Controller({ serviceworker, transport });
+        const controller = new Controller({
+          serviceworker,
+          transport,
+          scramjetConfig: {
+            flags: {
+              captureErrors: true,
+              cleanErrors: true,
+              syncxhr: (() => {
+                try { return localStorage.getItem("nightshift-sync-xhr") === "true"; } catch { return false; }
+              })(),
+            },
+          },
+        });
         await controller.wait();
         return controller;
       })().catch(error => {

@@ -30,5 +30,18 @@ server.on("upgrade", (req, socket, head) => {
   wisp.routeRequest(req, socket, head);
 });
 
+// Destination connections use public DNS so local resolver issues and
+// filtering cannot break sites, prefer IPv4 answers for reachability, cache
+// lookups longer, and cap streams per host to keep the host responsive.
+const wispDnsServers = (process.env.WISP_DNS_SERVERS || "1.1.1.1,1.0.0.1")
+  .split(",")
+  .map(value => value.trim())
+  .filter(Boolean);
+wisp.options.dns_method = "resolve";
+if (wispDnsServers.length > 0) wisp.options.dns_servers = wispDnsServers;
+wisp.options.dns_result_order = "ipv4first";
+wisp.options.dns_ttl = 3600;
+wisp.options.stream_limit_per_host = Number(process.env.WISP_STREAM_LIMIT_PER_HOST || 100);
+
 const port = Number(process.env.PORT || 3000);
 server.listen(port, () => console.log(`Nightshift is ready at http://localhost:${port}`));

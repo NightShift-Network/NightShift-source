@@ -62,7 +62,7 @@ Treat the proxy repository as generated output: make fixes in `NightShift-source
 
 ## Interactive Entertainment and Service Worker
 
-The Play link opens `public/games.html`, whose page title is Interactive Entertainment. It uses LuminSDK headless mode and builds its themed catalog/player with `getGames`, `getImageUrl`, and `getGameUrl`; the standard UI is inside Shadow DOM. Entertainment URLs are single-use; request a fresh one per launch. `public/sw.js` routes Scramjet's same-origin requests and passes SDK/API requests directly to the browser. Preserve this bypass. For Lumin failures, inspect Firefox Network details; cross-origin `responseStatus: 0` alone does not prove failure.
+The Play link opens `public/games.html`, whose page title is Interactive Entertainment. It uses LuminSDK headless mode and builds its themed catalog/player with `getGames`, `getImageUrl`, and `getGameUrl`; the standard UI is inside Shadow DOM. Entertainment URLs are single-use; request a fresh one per launch. `public/sw.js` routes Scramjet's same-origin requests, proxies static cross-origin subresources (images, fonts, audio, and video) from proxied browser frames, and passes SDK/API requests directly to the browser. Preserve the interactive entertainment bypass. For Lumin failures, inspect Firefox Network details; cross-origin `responseStatus: 0` alone does not prove failure.
 
 ## Current Interface Features
 
