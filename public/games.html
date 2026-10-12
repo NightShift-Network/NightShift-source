@@ -120,6 +120,7 @@
     const proxyRouteButton = document.querySelector("#player-proxy-route");
     let activeGame = null;
     let proxiedPlayback = false;
+    let playerBrowserFrame = null;
     let initPromise = null;
     let sdkReady = false;
     let currentPage = 1;
@@ -385,14 +386,18 @@
       proxyRouteButton.disabled = true;
       proxyRouteButton.textContent = routeThroughProxy ? "Routing through proxy…" : "Switching to direct…";
       try {
-        const controller = routeThroughProxy ? await getBrowserController() : null;
+        if (routeThroughProxy && !playerBrowserFrame) {
+          // Register the player iframe with the controller so its proxied URLs
+          // carry the frame prefix ("/~/sj/<controller-id>/<frame-id>/<encoded>")
+          // the service worker needs to find a frame for the request.
+          const controller = await getBrowserController();
+          playerBrowserFrame = controller.createFrame(playerFrame);
+        }
         const { url, meta } = await window.Lumin.getGameUrl(activeGame.id);
-        if (!controller) {
-          playerFrame.src = url;
+        if (routeThroughProxy) {
+          playerBrowserFrame.go(url);
         } else {
-          const proxied = proxiedUrl(url, controller);
-          if (!proxied) throw new Error("This experience cannot be routed through the proxy.");
-          playerFrame.src = proxied;
+          playerFrame.src = url;
         }
         playerTitle.textContent = meta?.name || activeGame.name || "Experience";
         proxiedPlayback = routeThroughProxy;
