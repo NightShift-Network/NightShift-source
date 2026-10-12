@@ -37,8 +37,10 @@ for (const file of existingFiles) {
 const obfuscate = code => {
   const output = JavaScriptObfuscator.obfuscate(code, {
     compact: true,
-    controlFlowFlattening: false,
-    deadCodeInjection: false,
+    controlFlowFlattening: true,
+    controlFlowFlatteningThreshold: 0.75,
+    deadCodeInjection: true,
+    deadCodeInjectionThreshold: 0.25,
     identifierNamesGenerator: "hexadecimal",
     numbersToExpressions: true,
     renameGlobals: false,
@@ -46,6 +48,8 @@ const obfuscate = code => {
     stringArrayCallsTransform: true,
     stringArrayCallsTransformThreshold: 1,
     stringArrayEncoding: ["base64"],
+    stringArrayRotate: true,
+    stringArrayShuffle: true,
     stringArrayThreshold: 1,
   }).getObfuscatedCode();
 
