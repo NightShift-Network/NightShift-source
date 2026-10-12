@@ -91,13 +91,13 @@ Nightshift is built with Node.js and ES modules. The server uses Express to serv
 
 This repository, [NightShift-source](https://github.com/NightShift-Network/NightShift-source), contains the readable source code for [NightShift Proxy](https://github.com/NightShift-Network/NightShift-proxy). The proxy repository receives a generated distribution with frontend JavaScript obfuscated and HTML and CSS minified. Each generated release includes `SOURCE_COMMIT.txt` so it can be matched to the source revision.
 
-Publishing is run locally so the GitHub token stays in your uncommitted `.env` file. `.env` is ignored by Git. Set `PROXY_REPO_TOKEN` in `.env` to a fine-grained token with Contents read and write access to `NightShift-proxy`, commit your source changes, then run:
+Publishing is run locally so the proxy token stays in your uncommitted `.env` file. `.env` is ignored by Git. Set `PROXY_REPO_TOKEN` in `.env` to a fine-grained token with Contents read and write access to `NightShift-proxy`, commit your source changes on `main`, then run:
 
 ```sh
 ./publish.sh
 ```
 
-The script checks for Node.js, npm, an ignored `.env` with the token, and a clean source checkout. It installs the build tools, clones `NightShift-proxy` into a temporary directory, builds the obfuscated distribution, commits any changes, and pushes its `main` branch. It passes the token to Git's temporary askpass helper; it does not save the token in Git configuration or the remote URL. To build without publishing, run `npm run build:proxy -- /path/to/output-directory`.
+The script checks for Node.js, npm, the source repository remote, the `main` branch, an ignored `.env` with the token, and a clean source checkout. It installs dependencies, pushes committed source changes to `NightShift-source`, then builds the distribution and commits and pushes generated changes to `NightShift-proxy`. Source pushes use your normal GitHub Git credentials; `PROXY_REPO_TOKEN` is used only for the proxy repository and is passed through Git's temporary askpass helper. It is not saved in Git configuration or the remote URL. If either push fails, the script stops. To build without publishing, run `npm run build:proxy -- /path/to/output-directory`.
 
 ## Self-hosting
 

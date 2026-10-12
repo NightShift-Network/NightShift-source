@@ -132,7 +132,7 @@
       const saved = localStorage.getItem("nightshift-favorite-cloak-mode");
       if (["about:blank", "blob"].includes(saved)) return saved;
     } catch {}
-    return "about:blank";
+    return "blob";
   }
 
   function loadCloakSettings() {
@@ -143,11 +143,11 @@
           title: typeof saved.title === "string" ? saved.title.slice(0, 64) : "Nightshift",
           icon: typeof saved.icon === "string" ? saved.icon : "",
           redirect: normalizeCloakRedirect(saved.redirect) || "https://www.google.com/",
-          autoCloak: Boolean(saved.autoCloak),
+          autoCloak: typeof saved.autoCloak === "boolean" ? saved.autoCloak : true,
         };
       }
     } catch {}
-    return { title: "Nightshift", icon: "", redirect: "https://www.google.com/", autoCloak: false };
+    return { title: "Nightshift", icon: "", redirect: "https://www.google.com/", autoCloak: true };
   }
 
   function loadAppleTouchDisguise() {
