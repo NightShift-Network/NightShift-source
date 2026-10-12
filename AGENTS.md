@@ -71,6 +71,7 @@ The Proxy, Games, and Cloak sections fill the app viewport and are selected from
 ## Product Naming
 
 Use NightShift as the product name in user-facing branding where it reads naturally. Keep technical descriptions accurate about proxy behavior.
+In user-facing copy, refer to NightShift as a browser where it reads naturally.
 
 ## Roadmap: Tor and Onion Support
 
