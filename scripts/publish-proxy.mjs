@@ -49,7 +49,11 @@ const obfuscate = code => {
     stringArrayThreshold: 1,
   }).getObfuscatedCode();
 
-  if (code.trim() && (output === code || !output.includes("_0x"))) {
+  // The obfuscator does not have to emit hexadecimal identifiers for every
+  // valid input (for example, scripts containing only literals or operators).
+  // Treat an unchanged non-empty result as a failure, but do not infer failure
+  // from the shape of the generated identifiers.
+  if (code.trim() && output === code) {
     throw new Error("JavaScript obfuscation did not run; refusing to publish readable frontend code.");
   }
 
