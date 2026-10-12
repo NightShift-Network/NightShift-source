@@ -201,7 +201,8 @@
 
   // Decode the real destination of a proxied frame. Scramjet serves frames at
   // "/~/sj/<controller-id>/<frame-id>/<encoded-url>" (same-origin), so the
-  // destination is readable and decodable from the frame's location.
+  // destination is readable and decodable from the frame's location. There are
+  // two id segments to skip before the encoded URL.
   function decodeFrameUrl(frame) {
     try {
       const href = frame.contentWindow?.location?.href || "";
@@ -209,9 +210,11 @@
       const start = href.indexOf(marker);
       if (start === -1) return "";
       const afterMarker = href.slice(start + marker.length);
-      const slash = afterMarker.indexOf("/");
-      if (slash === -1) return "";
-      const encoded = afterMarker.slice(slash + 1);
+      const firstSlash = afterMarker.indexOf("/");
+      if (firstSlash === -1) return "";
+      const secondSlash = afterMarker.indexOf("/", firstSlash + 1);
+      if (secondSlash === -1) return "";
+      const encoded = afterMarker.slice(secondSlash + 1);
       const decoded = window.$scramjetController?.config?.codec?.decode(encoded);
       return decoded && /^(https?:|about:)/i.test(decoded) ? decoded : "";
     } catch {
