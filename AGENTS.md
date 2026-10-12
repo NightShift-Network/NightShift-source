@@ -2,7 +2,7 @@
 
 ## Project Structure
 
-NightShift is a Node.js/Express proxy. `server.js` serves the app and routes `/wisp/` WebSocket upgrades. `public/` holds the interface and Scramjet service worker; `index.html`, `style.css`, and `app.js` make up the proxy UI, while `games.html` is a separate full-page, headless LuminSDK interactive entertainment catalog and player. The main UI has full-screen sidebar sections for Browser, Play, and quick cloaking. Epoxy and libcurl are selectable transports. Frontend development uses the plain files in `public/`; `scripts/publish-proxy.mjs` transforms them for the public distribution repository.
+NightShift is a Node.js/Express proxy. `server.js` serves the app, a styled 404 page for unmatched routes, and `/wisp/` WebSocket upgrades. `public/` holds the interface and Scramjet service worker; `index.html`, `style.css`, and `app.js` make up the proxy UI, while `games.html` is a separate full-page, headless LuminSDK interactive entertainment catalog and player. The main UI has full-screen sidebar sections for Browser, Play, and quick cloaking. Epoxy and libcurl are selectable transports. Frontend development uses the plain files in `public/`; `scripts/publish-proxy.mjs` transforms them for the public distribution repository.
 
 ## Development Commands
 

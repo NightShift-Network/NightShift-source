@@ -20,6 +20,21 @@ app.use("/epoxy", express.static(packageDist("@mercuryworkshop/epoxy-transport")
 app.use("/libcurl", express.static(packageDist("@mercuryworkshop/libcurl-transport")));
 app.use(express.static("public"));
 
+// Unmatched routes: serve the styled 404 page to browsers and a plain 404 to
+// asset and API-like requests so missing scripts fail like scripts.
+app.use((req, res) => {
+  res.status(404);
+  if (req.accepts("html")) {
+    res.sendFile(path.join(process.cwd(), "public", "404.html"));
+    return;
+  }
+  if (req.accepts("json")) {
+    res.json({ error: "Not found" });
+    return;
+  }
+  res.type("txt").send("Not found");
+});
+
 const server = http.createServer(app);
 server.on("upgrade", (req, socket, head) => {
   const pathname = new URL(req.url || "/", "http://localhost").pathname;
