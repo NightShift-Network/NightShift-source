@@ -7,7 +7,7 @@
 
 <br>
 
-This is the readable source code repository for [NightShift Proxy](https://github.com/NightShift-Network/NightShift-proxy). For installation, use the generated proxy repository; this repository is for reviewing and changing the source code.
+This is the readable source code repository for [NightShift Proxy](https://github.com/NightShift-Network/NightShift-proxy). This contains instructions for install with README links pointing at the obfuscated project for installation, this repository contains the readable source code so this project can remain open source while still bypassing filters.
 
 NightShift uses [Scramjet](https://github.com/MercuryWorkshop/scramjet) to proxy browser traffic and [Wisp](https://github.com/MercuryWorkshop/wisp-js) for its WebSocket transport.
 
