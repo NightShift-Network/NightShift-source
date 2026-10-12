@@ -72,6 +72,20 @@ writeFileSync(path.join(outputDir, "README.md"), `# NightShift Proxy
 
 NightShift is a self-hosted web proxy with a tabbed dark-mode interface. This repository contains the generated distribution. The readable source code is maintained in [NightShift-source](https://github.com/NightShift-Network/NightShift-source).
 
+## Easy VPS setup
+
+For a Debian or Ubuntu VPS with a public domain pointed at its IP address, allow inbound TCP ports 80 and 443, then run:
+
+\`\`\`sh
+git clone https://github.com/NightShift-Network/NightShift-proxy.git
+cd NightShift-proxy
+sudo ./setup.sh --domain proxy.example.com --email you@example.com
+\`\`\`
+
+The setup script installs Docker, Nginx, and Certbot as needed, starts NightShift, configures HTTPS, and enables certificate renewal. Replace the example domain and email with your own values.
+
+For management after setup, use \`sudo ./setup.sh --start\`, \`--stop\`, \`--restart\`, or \`--logs\`. To update the running installation after pulling new repository changes, run \`sudo ./setup.sh --update\`.
+
 ## Run with Node.js
 
 Requirements: Node.js and npm, plus network access for package installation and outbound Wisp connections.
