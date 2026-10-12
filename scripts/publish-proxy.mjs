@@ -34,15 +34,27 @@ for (const file of existingFiles) {
   rmSync(path.join(outputDir, file), { force: true });
 }
 
-const obfuscate = code => JavaScriptObfuscator.obfuscate(code, {
-  compact: true,
-  controlFlowFlattening: false,
-  deadCodeInjection: false,
-  identifierNamesGenerator: "hexadecimal",
-  renameGlobals: false,
-  stringArray: true,
-  stringArrayThreshold: 0.7,
-}).getObfuscatedCode();
+const obfuscate = code => {
+  const output = JavaScriptObfuscator.obfuscate(code, {
+    compact: true,
+    controlFlowFlattening: false,
+    deadCodeInjection: false,
+    identifierNamesGenerator: "hexadecimal",
+    numbersToExpressions: true,
+    renameGlobals: false,
+    stringArray: true,
+    stringArrayCallsTransform: true,
+    stringArrayCallsTransformThreshold: 1,
+    stringArrayEncoding: ["base64"],
+    stringArrayThreshold: 1,
+  }).getObfuscatedCode();
+
+  if (code.trim() && (output === code || !output.includes("_0x"))) {
+    throw new Error("JavaScript obfuscation did not run; refusing to publish readable frontend code.");
+  }
+
+  return output;
+};
 
 for (const file of trackedFiles) {
   const sourcePath = path.join(sourceRoot, file);
