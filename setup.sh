@@ -108,6 +108,52 @@ confirm() {
   [[ $answer == y || $answer == Y || $answer == yes || $answer == YES ]]
 }
 
+confirm_disable_unresolved_site() {
+  local site="$1" upstream="$2" answer=""
+  echo "Nginx cannot resolve upstream '$upstream' in $site." >&2
+  echo "Disabling this site's enabled symlink will stop that virtual host from serving." >&2
+  if [[ ! -r /dev/tty ]]; then
+    echo "No interactive terminal is available. Fix the upstream DNS/configuration or rerun interactively to choose whether to disable it." >&2
+    return 1
+  fi
+  read -r -p "Disable this Nginx site so setup can continue? [y/N] " answer </dev/tty
+  [[ $answer == y || $answer == Y || $answer == yes || $answer == YES ]]
+}
+
+nginx_test_with_upstream_prompt() {
+  local output pattern failed_site upstream line link_target
+  pattern='host not found in upstream "([^"]+)" in ([^:]+):([0-9]+)'
+
+  while true; do
+    if output="$(nginx -t 2>&1)"; then
+      printf '%s\n' "$output"
+      return 0
+    fi
+
+    printf '%s\n' "$output" >&2
+    if [[ ! $output =~ $pattern ]]; then
+      return 1
+    fi
+    upstream="${BASH_REMATCH[1]}"
+    failed_site="${BASH_REMATCH[2]}"
+    line="${BASH_REMATCH[3]}"
+
+    if [[ $failed_site != /etc/nginx/sites-enabled/* || ! -L $failed_site || $failed_site == "$NGINX_LINK" ]]; then
+      echo "Cannot safely disable the reported Nginx config automatically. Fix the upstream or config at $failed_site:$line, then rerun setup." >&2
+      return 1
+    fi
+    if ! confirm_disable_unresolved_site "$failed_site:$line" "$upstream"; then
+      echo "Kept $failed_site enabled. Fix its upstream DNS/configuration, then rerun setup." >&2
+      return 1
+    fi
+
+    link_target="$(readlink -f -- "$failed_site" || readlink -- "$failed_site")"
+    unlink -- "$failed_site"
+    echo "Disabled $failed_site; its configuration remains at $link_target." >&2
+    echo "Restore it with: sudo ln -s '$link_target' '$failed_site'" >&2
+  done
+}
+
 read_saved_port() {
   if [[ -f $ENV_FILE ]]; then
     sed -n 's/^NIGHTSHIFT_PORT=//p' "$ENV_FILE" | tail -n 1
@@ -163,7 +209,7 @@ remove_nginx_config() {
     echo "Restored previous default Nginx site."
   fi
   if command -v nginx >/dev/null 2>&1; then
-    if nginx -t >/dev/null 2>&1; then
+    if nginx_test_with_upstream_prompt >/dev/null; then
       systemctl reload nginx
       echo "Nginx reloaded successfully."
     else
@@ -484,7 +530,7 @@ NGINX
 
 write_http_site "$NGINX_SITE"
 ln -sfn "$NGINX_SITE" "$NGINX_LINK"
-nginx -t
+nginx_test_with_upstream_prompt
 systemctl reload nginx
 
 if ! getent ahostsv4 "$DOMAIN" >/dev/null; then
@@ -505,7 +551,7 @@ systemctl reload nginx
 HOOK
 chmod 755 "$RELOAD_HOOK"
 
-nginx -t
+nginx_test_with_upstream_prompt
 systemctl reload nginx
 certbot renew --cert-name "$DOMAIN" --quiet
 if systemctl list-unit-files certbot.timer --no-legend 2>/dev/null | grep -q 'certbot.timer'; then
