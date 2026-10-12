@@ -99,6 +99,19 @@ npm start
 
 Open http://localhost:3000. To use another port, set \`PORT\`, for example \`PORT=8080 npm start\`.
 
+## Keep it running with PM2
+
+From the NightShift-proxy directory, install PM2 and start NightShift as a managed process:
+
+\`\`\`sh
+npm install -g pm2
+PORT=3000 pm2 start server.js --name nightshift
+pm2 save
+pm2 startup
+\`\`\`
+
+Run the platform-specific command printed by \`pm2 startup\` (it may require \`sudo\`), then run \`pm2 save\` again. Check the process with \`pm2 status\`, view logs with \`pm2 logs nightshift\`, and restart after server changes with \`pm2 restart nightshift\`.
+
 ## Using NightShift
 
 Open the NightShift page in your browser, enter a website address or search term, and press Enter. Use the sidebar to open Games or quick cloaking. Proxy preferences and bookmarks are stored in that browser.
