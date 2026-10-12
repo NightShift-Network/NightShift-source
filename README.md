@@ -22,8 +22,8 @@ The fastest way to deploy NightShift on a Debian or Ubuntu VPS with Docker, Ngin
 ### 1. Clone and Run Setup
 
 ```sh
-git clone https://github.com/palmtree890/NightShift.git
-cd NightShift
+git clone https://github.com/NightShift-Network/NightShift-source.git
+cd NightShift-source
 sudo ./setup.sh --domain your.domain.example --email you@example.com
 ```
 ### NOTE: If the setup script fails you can simply run it again and it will likely fix the issue.
@@ -85,6 +85,21 @@ Compatibility varies; sites may limit proxy traffic or rely on browser features 
 
 Nightshift is built with Node.js and ES modules. The server uses Express to serve the static browser app and the Scramjet, controller, Epoxy, and libcurl assets; Wisp handles the `/wisp/` WebSocket transport. The frontend is plain HTML, CSS, and browser JavaScript in `public/`, with no frontend build step. Scramjet runs proxied pages in the browser. The separate `public/games.html` page uses LuminSDK's headless methods to render its own game catalog and player. Bookmarks and preferences are stored in browser `localStorage`. The server port is selected with `PORT` (default `3000`).
 
+## Source and Proxy Repositories
+
+`NightShift-source` is the readable source repository. The `NightShift-proxy` repository receives a generated distribution with frontend JavaScript obfuscated and HTML and CSS minified. Each generated release includes `SOURCE_COMMIT.txt` so it can be matched to the source revision.
+
+Publishing is run locally so the GitHub token stays in your uncommitted `.env` file. `.env` is ignored by Git. Create or update it with `PROXY_REPO_TOKEN` set to a fine-grained token that has Contents read and write access to `NightShift-proxy`:
+
+```sh
+nano .env
+npm install
+npm install --no-save --package-lock=false clean-css@5 html-minifier-terser@7 javascript-obfuscator@4
+npm run publish:proxy
+```
+
+The publisher clones `NightShift-proxy` into a temporary directory, builds the obfuscated distribution, commits any changes, and pushes its `main` branch. It passes the token to Git's temporary askpass helper; it does not save the token in Git configuration or the remote URL. To build without publishing, run `npm run build:proxy -- /path/to/output-directory`.
+
 ## Self-hosting
 
 ### Requirements
@@ -95,8 +110,8 @@ Nightshift is built with Node.js and ES modules. The server uses Express to serv
 ### Run locally
 
 ```sh
-git clone https://github.com/palmtree890/NightShift.git
-cd NightShift
+git clone https://github.com/NightShift-Network/NightShift-source.git
+cd NightShift-source
 npm install
 npm start
 ```

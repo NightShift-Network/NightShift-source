@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "build:proxy": "node scripts/publish-proxy.mjs",
+    "publish:proxy": "node scripts/sync-proxy.mjs"
   },
   "dependencies": {
     "@mercuryworkshop/epoxy-transport": "^3.0.1",
