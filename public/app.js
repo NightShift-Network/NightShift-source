@@ -6,6 +6,8 @@
   const pageLoading = document.querySelector("#page-loading");
   const pageLoadingNote = document.querySelector("#page-loading-note");
   const alternateTransportButton = document.querySelector("#retry-other-transport");
+  const backButton = document.querySelector("#back");
+  const forwardButton = document.querySelector("#forward");
   const address = document.querySelector("#address");
   const heroAddress = document.querySelector("#hero-address");
   const toast = document.querySelector("#toast");
@@ -197,6 +199,57 @@
     try { return new URL(url).hostname.replace(/^www\./, "").toLowerCase(); } catch { return ""; }
   }
 
+  // Decode the real destination of a proxied frame. Scramjet serves frames at
+  // "/~/sj/<controller-id>/<frame-id>/<encoded-url>" (same-origin), so the
+  // destination is readable and decodable from the frame's location.
+  function decodeFrameUrl(frame) {
+    try {
+      const href = frame.contentWindow?.location?.href || "";
+      const marker = "/sj/";
+      const start = href.indexOf(marker);
+      if (start === -1) return "";
+      const afterMarker = href.slice(start + marker.length);
+      const slash = afterMarker.indexOf("/");
+      if (slash === -1) return "";
+      const encoded = afterMarker.slice(slash + 1);
+      const decoded = window.$scramjetController?.config?.codec?.decode(encoded);
+      return decoded && /^(https?:|about:)/i.test(decoded) ? decoded : "";
+    } catch {
+      return "";
+    }
+  }
+
+  // Record a page the frame reached on its own (link click, redirect, or SPA
+  // pushState), so Back/Forward can walk in-frame navigation too.
+  function recordFrameDestination(tab, dest) {
+    tab.frameUrl = dest;
+    if (tab.loading || dest === tab.url) return; // app-initiated navigation completing
+    tab.history = tab.history.slice(0, tab.historyIndex + 1);
+    tab.history.push(dest);
+    tab.historyIndex = tab.history.length - 1;
+    tab.url = dest;
+    tab.title = "Loading…";
+  }
+
+  // Poll the active frame's location: full navigations fire the iframe "load"
+  // event, but SPA history.pushState changes do not, and those are common.
+  function startFrameWatcher(tab) {
+    clearInterval(tab.locationTimer);
+    tab.locationTimer = setInterval(() => {
+      if (tab.id !== activeId || !tab.url) return;
+      const dest = decodeFrameUrl(tab.frame);
+      if (!dest || dest === tab.frameUrl) return;
+      const wasLoading = tab.loading;
+      recordFrameDestination(tab, dest);
+      if (!wasLoading) {
+        let spaTitle = "";
+        try { spaTitle = tab.frame.contentDocument?.title?.trim() || ""; } catch {}
+        if (spaTitle) tab.title = spaTitle;
+        render();
+      }
+    }, 800);
+  }
+
   // Remember the transport that loaded a site so revisits start with it.
   // The default transport is implied, so only the non-default is stored.
   function rememberSiteTransport(url, kind) {
@@ -380,6 +433,9 @@
       : "Large sites can take a moment.";
     alternateTransportButton.hidden = !current?.slowLoading;
     alternateTransportButton.textContent = `Retry with ${alternateLabel}`;
+    const historyIndex = current?.historyIndex ?? -1;
+    backButton.disabled = !current?.url || historyIndex <= 0;
+    forwardButton.disabled = !current?.url || historyIndex >= (current?.history.length ?? 1) - 1;
     address.value = current?.url || "";
     const currentBookmarked = Boolean(current?.url && bookmarks.some(item => item.url === current.url));
     bookmarkButton.classList.toggle("saved", currentBookmarked);
@@ -486,6 +542,7 @@
   function activate(id) {
     if (!tabs.some(tab => tab.id === id)) return;
     activeId = id;
+    startFrameWatcher(tabs.find(tab => tab.id === id));
     render();
   }
 
@@ -499,6 +556,8 @@
     frame.addEventListener("load", () => {
       const tab = tabs.find(item => item.id === id);
       if (!tab || !tab.url) return;
+      const dest = decodeFrameUrl(tab.frame);
+      if (dest && dest !== tab.frameUrl) recordFrameDestination(tab, dest);
       clearTimeout(tab.loadingTimer);
       tab.loading = false;
       tab.slowLoading = false;
@@ -513,9 +572,10 @@
       render();
     });
     framesEl.append(frame);
-    const tab = { id, url: "", title: "New tab", frame, browserFrame: null, history: [], historyIndex: -1, loading: false, slowLoading: false, loadingTimer: null };
+    const tab = { id, url: "", title: "New tab", frame, browserFrame: null, history: [], historyIndex: -1, loading: false, slowLoading: false, loadingTimer: null, frameUrl: "", locationTimer: null };
     tabs.push(tab);
     activeId = id;
+    startFrameWatcher(tab);
     if (url) navigate(url);
     else render();
     return tab;
@@ -524,6 +584,7 @@
   function closeTab(id) {
     const index = tabs.findIndex(tab => tab.id === id);
     if (index < 0) return;
+    clearInterval(tabs[index].locationTimer);
     tabs[index].frame.remove();
     tabs.splice(index, 1);
     if (!tabs.length) createTab();
