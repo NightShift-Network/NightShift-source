@@ -41,13 +41,25 @@ Keep secrets and host-specific settings out of source control; use environment v
 
 `NightShift-source` is the canonical, readable source repository. `NightShift-proxy` receives generated files; JavaScript in `public/` is obfuscated, HTML and CSS are minified, and `SOURCE_COMMIT.txt` records the source revision. Publish only from the source checkout. Commit source changes before publishing so the generated files and recorded revision match committed source.
 
-Add `PROXY_REPO_TOKEN=<token>` to the local, uncommitted `.env`, commit source changes, then run:
+### Publish workflow
+
+1. Work from the `NightShift-source` checkout. Confirm `origin` points to `https://github.com/NightShift-Network/NightShift-source.git` with `git remote -v`.
+2. Create a fine-grained GitHub token with Contents read/write access to `NightShift-proxy`. Add it to the local `.env` as `PROXY_REPO_TOKEN=<token>`. Never paste the token into commands, chat, or tracked files.
+3. Confirm `.env` is ignored with `git check-ignore -q .env`. If this exits nonzero, stop and fix `.gitignore` before adding a token. `git status --short` should not list `.env`.
+4. Commit the intended source changes and push them to `main`:
 
 ```sh
-./publish.sh
+git add -A
+git commit -m "Describe the source change"
+git push origin main
 ```
 
-The publish script clones the distribution repo in a temporary directory, updates generated files, commits changes, and pushes `main`. Do not copy distribution files back into the source repo. To create a local build without publishing, use `npm run build:proxy -- /path/to/output`.
+5. Run `./publish.sh` from the source checkout. It verifies Node.js, npm, `.env`, the ignored-token setting, and a clean Git worktree; installs runtime and frontend transformation dependencies; generates the distribution; then clones `NightShift-proxy` into a temporary directory, commits generated changes, and pushes `main`.
+6. Open `https://github.com/NightShift-Network/NightShift-proxy` and check the latest commit, generated README, and `SOURCE_COMMIT.txt`. The recorded source commit should match `git rev-parse HEAD` in the source checkout.
+
+If `publish.sh` says the worktree is dirty, commit and push the intended source changes, then rerun it. If it reports a missing or blank token, update `.env` and check that `.env` remains ignored. If GitHub rejects authentication or the push, confirm the token is valid, has Contents read/write access to `NightShift-proxy`, and has not expired; replace it in `.env` without printing it, then rerun. If dependency installation fails, resolve the Node.js/npm or network issue and rerun the same command. The publish script removes its temporary checkout on success or failure, so retrying starts with a fresh clone.
+
+Treat the proxy repository as generated output: make fixes in `NightShift-source`, then publish again. Do not copy distribution files back into the source repo or edit generated proxy files by hand. To create a local build without publishing, use `npm run build:proxy -- /path/to/output`.
 
 ## Games and Service Worker
 
