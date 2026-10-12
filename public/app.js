@@ -1,6 +1,6 @@
 (() => {
   const tabsEl = document.querySelector("#tabs");
-  const pr0xyTabButton = document.querySelector("#pr0xy-tab");
+  const browserTabButton = document.querySelector("#browser-tab");
   const framesEl = document.querySelector("#frames");
   const homeView = document.querySelector("#home-view");
   const pageLoading = document.querySelector("#page-loading");
@@ -14,7 +14,7 @@
   const bookmarkItems = document.querySelector("#bookmark-items");
   const settingsDialog = document.querySelector("#settings");
   const searchEngineSelect = document.querySelector("#search-engine");
-  const pr0xyTransportSelect = document.querySelector("#pr0xy-transport");
+  const browserTransportSelect = document.querySelector("#browser-transport");
   const customSearchRow = document.querySelector("#custom-search-row");
   const customSearchInput = document.querySelector("#custom-search");
   const shortcutList = document.querySelector("#shortcuts");
@@ -40,7 +40,7 @@
     palmtree: "https://search.palmtree.technology/?q=%s",
   };
   let searchSettings = loadSearchSettings();
-  let pr0xyTransport = loadPr0xyTransport();
+  let browserTransport = loadBrowserTransport();
   let shortcuts = loadShortcuts();
   let cloakMode = loadCloakMode();
   let favoriteCloakMode = loadFavoriteCloakMode();
@@ -82,16 +82,16 @@
     return { engine: "duckduckgo", endpoint: "" };
   }
 
-  const TRANSPORT_KEY = "nightshift-pr0xy-transport";
-  const LEGACY_TRANSPORT_KEY = "nightshift-pro" + "xy-transport";
+  const TRANSPORT_KEY = "nightshift-browser-transport";
+  const LEGACY_TRANSPORT_KEYS = ["nightshift-pr" + "0xy-transport", "nightshift-pro" + "xy-transport"];
 
-  function loadPr0xyTransport() {
+  function loadBrowserTransport() {
     try {
-      const saved = localStorage.getItem(TRANSPORT_KEY) || localStorage.getItem(LEGACY_TRANSPORT_KEY);
+      const saved = localStorage.getItem(TRANSPORT_KEY) || LEGACY_TRANSPORT_KEYS.map(key => localStorage.getItem(key)).find(Boolean);
       if (saved === "epoxy" || saved === "libcurl") {
         try {
           localStorage.setItem(TRANSPORT_KEY, saved);
-          localStorage.removeItem(LEGACY_TRANSPORT_KEY);
+          LEGACY_TRANSPORT_KEYS.forEach(key => localStorage.removeItem(key));
         } catch {}
         return saved;
       }
@@ -207,7 +207,7 @@
 
   function render() {
     tabsEl.replaceChildren();
-    pr0xyTabButton.setAttribute("aria-pressed", "true");
+    browserTabButton.setAttribute("aria-pressed", "true");
     tabs.forEach(tab => {
       const button = document.createElement("button");
       button.className = `tab${tab.id === activeId ? " active" : ""}`;
@@ -240,7 +240,7 @@
       ? "Still loading. ChatGPT is a large app; try Epoxy in Settings if it stays here."
       : "Large sites can take a moment.";
     alternateTransportButton.hidden = !current?.slowLoading;
-    alternateTransportButton.textContent = pr0xyTransport === "libcurl" ? "Retry with Epoxy" : "Retry with libcurl";
+    alternateTransportButton.textContent = browserTransport === "libcurl" ? "Retry with Epoxy" : "Retry with libcurl";
     address.value = current?.url || "";
     const currentBookmarked = Boolean(current?.url && bookmarks.some(item => item.url === current.url));
     bookmarkButton.classList.toggle("saved", currentBookmarked);
@@ -354,8 +354,8 @@
     const id = restored?.id ?? nextId++;
     nextId = Math.max(nextId, id + 1);
     const frame = document.createElement("iframe");
-    frame.className = "pr0xy-frame";
-    frame.setAttribute("title", "Pr0xied web page");
+    frame.className = "browser-frame";
+    frame.setAttribute("title", "Browser page");
     frame.setAttribute("referrerpolicy", "no-referrer");
     frame.addEventListener("load", () => {
       const tab = tabs.find(item => item.id === id);
@@ -368,7 +368,7 @@
       render();
     });
     framesEl.append(frame);
-    const tab = { id, url: "", title: "New tab", frame, pr0xyFrame: null, history: [], historyIndex: -1, loading: false, slowLoading: false, loadingTimer: null };
+    const tab = { id, url: "", title: "New tab", frame, browserFrame: null, history: [], historyIndex: -1, loading: false, slowLoading: false, loadingTimer: null };
     tabs.push(tab);
     activeId = id;
     if (url) navigate(url);
@@ -408,14 +408,14 @@
     }
   }
 
-  async function getPr0xyController() {
+  async function getBrowserController() {
     if (!controllerPromise) controllerPromise = (async () => {
       if (!("serviceWorker" in navigator)) throw new Error("Service workers are unavailable");
       const registration = await navigator.serviceWorker.register("/sw.js", { type: "classic", updateViaCache: "none" });
       await navigator.serviceWorker.ready;
       const serviceworker = navigator.serviceWorker.controller || registration.active;
       if (!serviceworker) throw new Error("Scramjet service worker is not active");
-      const transport = await makeTransport(pr0xyTransport);
+      const transport = await makeTransport(browserTransport);
       const { Controller, config } = window.$scramjetController;
       config.injectPath = "/controller/controller.inject.js";
       config.scramjetPath = "/scram/scramjet.js";
@@ -444,12 +444,12 @@
     return new window.LibcurlTransport.LibcurlClient({ wisp: `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/wisp/` });
   }
 
-  async function getPr0xyFrame(tab) {
-    if (!tab.pr0xyFrame) {
-      const controller = await getPr0xyController();
-      tab.pr0xyFrame = controller.createFrame(tab.frame);
+  async function getBrowserFrame(tab) {
+    if (!tab.browserFrame) {
+      const controller = await getBrowserController();
+      tab.browserFrame = controller.createFrame(tab.frame);
     }
-    return tab.pr0xyFrame;
+    return tab.browserFrame;
   }
 
   async function navigate(value, options = {}) {
@@ -475,15 +475,15 @@
     }, 12_000);
     render();
     try {
-      const pr0xyFrame = await getPr0xyFrame(tab);
-      pr0xyFrame.go(target);
+      const browserFrame = await getBrowserFrame(tab);
+      browserFrame.go(target);
     } catch (error) {
       clearTimeout(tab.loadingTimer);
       tab.loading = false;
       tab.slowLoading = false;
       render();
       console.error(error);
-      notify("Could not open this page. Check the pr0xy connection and try again.");
+      notify("Could not open this page. Check the browser connection and try again.");
       return;
     }
   }
@@ -543,18 +543,18 @@
     const tab = activeTab();
     if (!tab?.url) return;
     const target = tab.url;
-    const nextTransport = pr0xyTransport === "libcurl" ? "epoxy" : "libcurl";
+    const nextTransport = browserTransport === "libcurl" ? "epoxy" : "libcurl";
     alternateTransportButton.disabled = true;
     alternateTransportButton.textContent = "Switching transport…";
     try {
-      const controller = await getPr0xyController();
+      const controller = await getBrowserController();
       controller.setTransport(await makeTransport(nextTransport));
-      pr0xyTransport = nextTransport;
-      try { localStorage.setItem(TRANSPORT_KEY, pr0xyTransport); } catch {}
+      browserTransport = nextTransport;
+      try { localStorage.setItem(TRANSPORT_KEY, browserTransport); } catch {}
       await navigate(target, { history: true });
     } catch (error) {
       console.error(error);
-      notify("Could not switch transport. Check the pr0xy connection and try again.");
+      notify("Could not switch transport. Check the browser connection and try again.");
     } finally {
       alternateTransportButton.disabled = false;
     }
@@ -570,7 +570,7 @@
 
   function openSettings() {
     searchEngineSelect.value = searchSettings.engine;
-    pr0xyTransportSelect.value = pr0xyTransport;
+    browserTransportSelect.value = browserTransport;
     cloakModeSelect.value = cloakMode;
     favoriteCloakModeSelect.value = favoriteCloakMode;
     cloakTitleInput.value = cloakSettings.title;
@@ -596,7 +596,7 @@
       exportedAt: new Date().toISOString(),
       settings: {
         search: searchSettings,
-        transport: pr0xyTransport,
+        transport: browserTransport,
         shortcuts,
         cloaking: {
           mode: cloakMode,
@@ -629,7 +629,7 @@
         if (!["http:", "https:"].includes(parsed.protocol)) throw new Error();
       } catch { throw new Error("The custom search URL is invalid."); }
     }
-    if (!["epoxy", "libcurl"].includes(data.transport)) throw new Error("The pr0xy transport setting is invalid.");
+    if (!["epoxy", "libcurl"].includes(data.transport)) throw new Error("The browser transport setting is invalid.");
     if (!Array.isArray(data.shortcuts) || data.shortcuts.length > 12) throw new Error("The quick access list is invalid.");
     const shortcuts = data.shortcuts.map(site => {
       if (!site || typeof site.name !== "string" || !site.name.trim() || typeof site.url !== "string") throw new Error("A quick access entry is invalid.");
@@ -672,12 +672,12 @@
     try {
       if (file.size > 2_000_000) throw new Error("Backup file is too large.");
       const imported = validateBackup(JSON.parse(await file.text()));
-      if (imported.transport !== pr0xyTransport && controllerPromise) {
-        const controller = await getPr0xyController();
+      if (imported.transport !== browserTransport && controllerPromise) {
+        const controller = await getBrowserController();
         controller.setTransport(await makeTransport(imported.transport));
       }
       searchSettings = imported.search;
-      pr0xyTransport = imported.transport;
+      browserTransport = imported.transport;
       shortcuts = imported.shortcuts;
       cloakMode = imported.cloaking.mode;
       favoriteCloakMode = imported.cloaking.favorite;
@@ -691,7 +691,7 @@
       bookmarks = imported.bookmarks;
       try {
         localStorage.setItem("nightshift-search-settings", JSON.stringify(searchSettings));
-        localStorage.setItem(TRANSPORT_KEY, pr0xyTransport);
+        localStorage.setItem(TRANSPORT_KEY, browserTransport);
         localStorage.setItem("nightshift-shortcuts", JSON.stringify(shortcuts));
         localStorage.setItem("nightshift-cloak-mode", cloakMode);
         localStorage.setItem("nightshift-favorite-cloak-mode", favoriteCloakMode);
@@ -703,7 +703,7 @@
       updateAppleTouchIcon(appleTouchDisguise);
       searchEngineSelect.value = searchSettings.engine;
       customSearchInput.value = searchSettings.endpoint;
-      pr0xyTransportSelect.value = pr0xyTransport;
+      browserTransportSelect.value = browserTransport;
       cloakModeSelect.value = cloakMode;
       favoriteCloakModeSelect.value = favoriteCloakMode;
       cloakTitleInput.value = cloakSettings.title;
@@ -791,10 +791,10 @@
       cloakRedirectInput.focus();
       return;
     }
-    const newTransport = pr0xyTransportSelect.value;
-    const transportChanged = newTransport !== pr0xyTransport;
-    pr0xyTransport = newTransport;
-    try { localStorage.setItem(TRANSPORT_KEY, pr0xyTransport); } catch {}
+    const newTransport = browserTransportSelect.value;
+    const transportChanged = newTransport !== browserTransport;
+    browserTransport = newTransport;
+    try { localStorage.setItem(TRANSPORT_KEY, browserTransport); } catch {}
     shortcuts = normalizedShortcuts;
     try { localStorage.setItem("nightshift-shortcuts", JSON.stringify(shortcuts)); } catch {}
     appleTouchDisguise = Boolean(appleTouchDisguiseCheckbox?.checked);
@@ -817,7 +817,7 @@
     notify("Settings saved.");
     if (transportChanged && controllerPromise) {
       void (async () => {
-        const controller = await getPr0xyController();
+        const controller = await getBrowserController();
         controller.setTransport(await makeTransport(newTransport));
       })().catch(error => {
         console.error(error);
@@ -885,7 +885,7 @@
     openCloaked(cloakMode, cloakSettings);
   });
   cloakTabButton.addEventListener("click", () => openCloaked(favoriteCloakMode));
-  pr0xyTabButton.addEventListener("click", () => {
+  browserTabButton.addEventListener("click", () => {
     const current = activeTab();
     if (!current || !current.url) {
       heroAddress.focus();

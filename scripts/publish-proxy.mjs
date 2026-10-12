@@ -64,23 +64,15 @@ const obfuscate = code => {
   return output;
 };
 
-const hideProductName = (code, replacement) => code.replace(/pr0xy/gi, match => replacement(match[0]));
-const hideInJavaScript = code => hideProductName(code, first => `\\u${first === "P" ? "0050" : "0070"}`);
-const hideInCss = code => hideProductName(code, first => `\\${first === "P" ? "50" : "70"} `);
-const hideInHtml = html => html
-  .replace(/(<script\b[^>]*>)([\s\S]*?)(<\/script\s*>)/gi, (_match, open, code, close) => `${open}${hideInJavaScript(code)}${close}`)
-  .replace(/(<style\b[^>]*>)([\s\S]*?)(<\/style\s*>)/gi, (_match, open, code, close) => `${open}${hideInCss(code)}${close}`)
-  .replace(/pr0xy/gi, match => match[0] === "P" ? "&#80;" : "&#112;");
-
 for (const file of trackedFiles) {
   const sourcePath = path.join(sourceRoot, file);
   const outputPath = path.join(outputDir, file);
   mkdirSync(path.dirname(outputPath), { recursive: true });
 
   if (file.startsWith("public/") && file.endsWith(".js")) {
-    writeFileSync(outputPath, hideInJavaScript(obfuscate(readFileSync(sourcePath, "utf8"))));
+    writeFileSync(outputPath, obfuscate(readFileSync(sourcePath, "utf8")));
   } else if (file.startsWith("public/") && file.endsWith(".css")) {
-    writeFileSync(outputPath, hideInCss(new CleanCSS().minify(readFileSync(sourcePath, "utf8")).styles));
+    writeFileSync(outputPath, new CleanCSS().minify(readFileSync(sourcePath, "utf8")).styles);
   } else if (file.startsWith("public/") && file.endsWith(".html")) {
     const html = await minify(readFileSync(sourcePath, "utf8"), {
       collapseWhitespace: true,
@@ -88,7 +80,7 @@ for (const file of trackedFiles) {
       minifyJS: obfuscate,
       removeComments: true,
     });
-    writeFileSync(outputPath, hideInHtml(html));
+    writeFileSync(outputPath, html);
   } else {
     cpSync(sourcePath, outputPath);
   }

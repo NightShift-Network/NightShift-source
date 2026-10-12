@@ -87,7 +87,7 @@
   <header class="topbar">
     <a class="brand" href="/" aria-label="NightShift home"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M15.7 2.4a9.6 9.6 0 1 0 5.9 16.8A11.1 11.1 0 0 1 15.7 2.4Z"/></svg></span><span>nightshift<span class="brand-dot">.</span></span></a>
     <span class="divider" aria-hidden="true"></span>
-    <a class="back" href="/">← Back to Pr0xy</a>
+    <a class="back" href="/">← Back to Browser</a>
     <div class="session"><span class="session-dot" aria-hidden="true"></span><span>NIGHTSHIFT ARCADE</span></div>
   </header>
   <main>
@@ -97,7 +97,7 @@
     <div id="games-grid" aria-live="polite"></div>
     <nav id="games-pagination" class="games-pagination" aria-label="Game pages" hidden></nav>
     <button id="retry" class="retry-button" type="button" hidden>Try again</button>
-    <button id="proxy-retry" class="retry-button" type="button" hidden>Try over proxy</button>
+    <button id="browser-retry" class="retry-button" type="button" hidden>Try in browser</button>
     <footer><span>BROWSE FREELY</span><span>POWERED BY LUMINSDK</span></footer>
   </main>
   <section id="game-player" class="player" aria-label="Game player" hidden>
@@ -108,7 +108,7 @@
   <script>
     const status = document.querySelector("#status");
     const retry = document.querySelector("#retry");
-    const proxyRetry = document.querySelector("#proxy-retry");
+    const browserRetry = document.querySelector("#browser-retry");
     const searchInput = document.querySelector("#game-search");
     const gamesGrid = document.querySelector("#games-grid");
     const pagination = document.querySelector("#games-pagination");
@@ -122,15 +122,15 @@
     let requestId = 0;
     let searchTimer;
     let imageUrls = [];
-    let proxyFallback = false;
-    let proxyControllerPromise = null;
+    let browserFallback = false;
+    let browserControllerPromise = null;
     let nativeFetch = window.fetch.bind(window);
 
     function reportError(error) {
       console.error("LuminSDK error:", error);
       status.textContent = `Games could not be loaded: ${error?.message || error || "Check your connection and try again."}`;
       retry.hidden = false;
-      proxyRetry.hidden = proxyFallback;
+      browserRetry.hidden = browserFallback;
     }
 
     function loadScript(src) {
@@ -143,7 +143,7 @@
       });
     }
 
-    async function loadProxyTransport(kind) {
+    async function loadBrowserTransport(kind) {
       const path = kind === "epoxy" ? "/epoxy/index.js" : "/libcurl/index.js";
       await loadScript(path);
       if (kind === "epoxy") {
@@ -152,8 +152,8 @@
       return new window.LibcurlTransport.LibcurlClient({ wisp: `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/wisp/` });
     }
 
-    async function getProxyController() {
-      if (!proxyControllerPromise) proxyControllerPromise = (async () => {
+    async function getBrowserController() {
+      if (!browserControllerPromise) browserControllerPromise = (async () => {
         if (!("serviceWorker" in navigator)) throw new Error("Service workers are unavailable");
         await loadScript("/scram/scramjet.js");
         await loadScript("/controller/controller.api.js");
@@ -163,10 +163,10 @@
         if (!serviceworker) throw new Error("Scramjet service worker is not active");
         let transportKind = "libcurl";
         try {
-          const saved = localStorage.getItem("nightshift-pr0xy-transport") || localStorage.getItem("nightshift-pro" + "xy-transport");
+          const saved = localStorage.getItem("nightshift-browser-transport") || localStorage.getItem("nightshift-pr" + "0xy-transport") || localStorage.getItem("nightshift-pro" + "xy-transport");
           if (saved === "epoxy" || saved === "libcurl") transportKind = saved;
         } catch {}
-        const transport = await loadProxyTransport(transportKind);
+        const transport = await loadBrowserTransport(transportKind);
         const { Controller, config } = window.$scramjetController;
         config.injectPath = "/controller/controller.inject.js";
         config.scramjetPath = "/scram/scramjet.js";
@@ -175,10 +175,10 @@
         await controller.wait();
         return controller;
       })().catch(error => {
-        proxyControllerPromise = null;
+        browserControllerPromise = null;
         throw error;
       });
-      return proxyControllerPromise;
+      return browserControllerPromise;
     }
 
     function proxiedUrl(url, controller) {
@@ -187,9 +187,9 @@
       return `${controller.prefix}${controller.config.codec.encode(target.href)}`;
     }
 
-    async function enableProxyFallback() {
-      const controller = await getProxyController();
-      if (!proxyFallback) {
+    async function enableBrowserFallback() {
+      const controller = await getBrowserController();
+      if (!browserFallback) {
         const originalXhrOpen = XMLHttpRequest.prototype.open;
         XMLHttpRequest.prototype.open = function(method, url, ...args) {
           let requestUrl = url;
@@ -208,7 +208,7 @@
           }
           return nativeFetch(targetUrl, { ...init, credentials: "omit" });
         };
-        proxyFallback = true;
+        browserFallback = true;
       }
       return controller;
     }
@@ -220,11 +220,11 @@
         sdkReady = false;
       }
       retry.hidden = true;
-      proxyRetry.hidden = true;
+      browserRetry.hidden = true;
       status.textContent = "Connecting to the game library…";
       initPromise = (async () => {
         try {
-          if (!window.Lumin && proxyFallback) await loadScript(`${(await getProxyController()).prefix}${window.$scramjetController.config.codec.encode("https://cdn.jsdelivr.net/gh/luminsdk/script@latest/lumin.min.js")}`);
+          if (!window.Lumin && browserFallback) await loadScript(`${(await getBrowserController()).prefix}${window.$scramjetController.config.codec.encode("https://cdn.jsdelivr.net/gh/luminsdk/script@latest/lumin.min.js")}`);
           if (!window.Lumin) throw new Error("The LuminSDK script could not be loaded from jsDelivr.");
           let initError = null;
           await window.Lumin.init({
@@ -365,12 +365,12 @@
       if (sdkReady) loadPage(currentPage);
       else initialize(true);
     });
-    proxyRetry.addEventListener("click", async () => {
-      proxyRetry.disabled = true;
-      proxyRetry.textContent = "Connecting through proxy…";
+    browserRetry.addEventListener("click", async () => {
+      browserRetry.disabled = true;
+      browserRetry.textContent = "Setting up browser connection…";
       try {
-        await enableProxyFallback();
-        proxyRetry.hidden = true;
+        await enableBrowserFallback();
+        browserRetry.hidden = true;
         if (sdkReady) loadPage(currentPage);
         else {
           initPromise = null;
@@ -379,8 +379,8 @@
       } catch (error) {
         reportError(error);
       } finally {
-        proxyRetry.disabled = false;
-        proxyRetry.textContent = "Try over proxy";
+        browserRetry.disabled = false;
+        browserRetry.textContent = "Try in browser";
       }
     });
     document.querySelector("#player-back").addEventListener("click", closePlayer);
