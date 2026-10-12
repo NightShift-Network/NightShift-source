@@ -40,9 +40,29 @@
     startpage: "https://www.startpage.com/sp/search?query=%s",
     palmtree: "https://search.palmtree.technology/?q=%s",
   };
+  // Chat/AI apps stream replies over WebSockets, the most transport-sensitive
+  // feature a site can use. These hosts get a tailored loading hint.
+  const AI_HOSTS = new Set([
+    "chatgpt.com",
+    "chat.openai.com",
+    "claude.ai",
+    "gemini.google.com",
+    "bard.google.com",
+    "perplexity.ai",
+    "copilot.microsoft.com",
+    "poe.com",
+    "you.com",
+    "character.ai",
+    "c.ai",
+    "mistral.ai",
+    "deepseek.com",
+    "groq.com",
+  ]);
   let searchSettings = loadSearchSettings();
   let browserTransport = loadBrowserTransport();
   let syncXhr = loadSyncXhr();
+  let activeTransport = browserTransport;
+  let siteTransports = loadSiteTransports();
   let shortcuts = loadShortcuts();
   let cloakMode = loadCloakMode();
   let favoriteCloakMode = loadFavoriteCloakMode();
@@ -114,7 +134,8 @@
       `Generated: ${new Date().toISOString()}`,
       `URL: ${location.href}`,
       `User agent: ${navigator.userAgent}`,
-      `Transport: ${browserTransport}`,
+      `Transport: ${activeTransport} (default ${browserTransport})`,
+      `Remembered site transports: ${Object.keys(siteTransports).length}`,
       `Sync XHR support: ${syncXhr ? "on" : "off"}`,
       `Service worker: ${"serviceWorker" in navigator ? (navigator.serviceWorker.controller ? "controlling" : "registered") : "unavailable"}`,
       `Scramjet: ${typeof window.$scramjet === "undefined" ? "not loaded" : "loaded"}`,
@@ -147,6 +168,52 @@
       textarea.remove();
       notify(copied ? "Diagnostics copied." : "Could not copy diagnostics.");
     }
+  }
+
+  const SITE_TRANSPORT_KEY = "nightshift-site-transports";
+
+  function loadSiteTransports() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(SITE_TRANSPORT_KEY) || "{}");
+      if (saved && typeof saved === "object") {
+        const cleaned = {};
+        for (const [host, kind] of Object.entries(saved)) {
+          if (host && (kind === "epoxy" || kind === "libcurl")) cleaned[host] = kind;
+        }
+        return cleaned;
+      }
+    } catch {}
+    return {};
+  }
+
+  function saveSiteTransports() {
+    try {
+      if (Object.keys(siteTransports).length === 0) localStorage.removeItem(SITE_TRANSPORT_KEY);
+      else localStorage.setItem(SITE_TRANSPORT_KEY, JSON.stringify(siteTransports));
+    } catch {}
+  }
+
+  function hostnameOf(url) {
+    try { return new URL(url).hostname.replace(/^www\./, "").toLowerCase(); } catch { return ""; }
+  }
+
+  // Remember the transport that loaded a site so revisits start with it.
+  // The default transport is implied, so only the non-default is stored.
+  function rememberSiteTransport(url, kind) {
+    const host = hostnameOf(url);
+    if (!host || !["epoxy", "libcurl"].includes(kind) || kind === browserTransport) return;
+    siteTransports = { ...siteTransports, [host]: kind };
+    saveSiteTransports();
+  }
+
+  function preferredTransportFor(url) {
+    return siteTransports[hostnameOf(url)] || browserTransport;
+  }
+
+  async function useTransport(kind) {
+    const controller = await getBrowserController();
+    controller.setTransport(await makeTransport(kind));
+    activeTransport = kind;
   }
 
   function loadBrowserTransport() {
@@ -300,11 +367,19 @@
     const current = activeTab();
     homeView.classList.toggle("hidden", Boolean(current?.url));
     pageLoading.hidden = !(current?.url && current.loading);
+    const currentUrl = current?.url || "";
+    const currentHost = hostnameOf(currentUrl);
+    const currentPreferred = preferredTransportFor(currentUrl);
+    const currentAlternate = currentPreferred === "libcurl" ? "epoxy" : "libcurl";
+    const alternateLabel = currentAlternate === "epoxy" ? "Epoxy" : "libcurl";
+    const aiSite = Boolean(currentHost && AI_HOSTS.has(currentHost));
     pageLoadingNote.textContent = current?.slowLoading
-      ? "Still loading. ChatGPT is a large app; try Epoxy in Settings if it stays here."
+      ? aiSite
+        ? `AI apps stream replies over WebSockets. Try ${alternateLabel} if this stays here.`
+        : "Still loading. Large sites can take a moment; the alternate transport may help."
       : "Large sites can take a moment.";
     alternateTransportButton.hidden = !current?.slowLoading;
-    alternateTransportButton.textContent = browserTransport === "libcurl" ? "Retry with Epoxy" : "Retry with libcurl";
+    alternateTransportButton.textContent = `Retry with ${alternateLabel}`;
     address.value = current?.url || "";
     const currentBookmarked = Boolean(current?.url && bookmarks.some(item => item.url === current.url));
     bookmarkButton.classList.toggle("saved", currentBookmarked);
@@ -429,6 +504,7 @@
       tab.slowLoading = false;
       if (tab.title === "Loading…") tab.title = new URL(tab.url).hostname.replace(/^www\./, "");
       updateBookmarkForTab(tab);
+      rememberSiteTransport(tab.url, activeTransport);
       render();
     });
     framesEl.append(frame);
@@ -480,6 +556,7 @@
       const serviceworker = navigator.serviceWorker.controller || registration.active;
       if (!serviceworker) throw new Error("Scramjet service worker is not active");
       const transport = await makeTransport(browserTransport);
+      activeTransport = browserTransport;
       const { Controller, config } = window.$scramjetController;
       config.injectPath = "/controller/controller.inject.js";
       config.scramjetPath = "/scram/scramjet.js";
@@ -550,6 +627,8 @@
     render();
     try {
       const browserFrame = await getBrowserFrame(tab);
+      const wanted = preferredTransportFor(target);
+      if (wanted !== activeTransport) await useTransport(wanted);
       browserFrame.go(target);
     } catch (error) {
       clearTimeout(tab.loadingTimer);
@@ -617,14 +696,19 @@
     const tab = activeTab();
     if (!tab?.url) return;
     const target = tab.url;
-    const nextTransport = browserTransport === "libcurl" ? "epoxy" : "libcurl";
+    const currentForSite = preferredTransportFor(target);
+    const nextForSite = currentForSite === "libcurl" ? "epoxy" : "libcurl";
     alternateTransportButton.disabled = true;
     alternateTransportButton.textContent = "Switching transport…";
     try {
-      const controller = await getBrowserController();
-      controller.setTransport(await makeTransport(nextTransport));
-      browserTransport = nextTransport;
-      try { localStorage.setItem(TRANSPORT_KEY, browserTransport); } catch {}
+      // Pin this host to the alternate transport so the reload keeps it, and
+      // a future visit starts with it. The global setting is left untouched.
+      const host = hostnameOf(target);
+      if (host) {
+        siteTransports = { ...siteTransports, [host]: nextForSite };
+        saveSiteTransports();
+      }
+      await useTransport(nextForSite);
       await navigate(target, { history: true });
     } catch (error) {
       console.error(error);
@@ -747,9 +831,10 @@
     try {
       if (file.size > 2_000_000) throw new Error("Backup file is too large.");
       const imported = validateBackup(JSON.parse(await file.text()));
-      if (imported.transport !== browserTransport && controllerPromise) {
-        const controller = await getBrowserController();
-        controller.setTransport(await makeTransport(imported.transport));
+      if (imported.transport !== browserTransport) {
+        siteTransports = {};
+        saveSiteTransports();
+        if (controllerPromise) await useTransport(imported.transport);
       }
       searchSettings = imported.search;
       browserTransport = imported.transport;
@@ -871,6 +956,12 @@
     const transportChanged = newTransport !== browserTransport;
     browserTransport = newTransport;
     try { localStorage.setItem(TRANSPORT_KEY, browserTransport); } catch {}
+    if (transportChanged) {
+      // An explicit global change takes precedence over remembered per-site
+      // transports, so start fresh.
+      siteTransports = {};
+      saveSiteTransports();
+    }
     const newSyncXhr = Boolean(syncXhrCheckbox?.checked);
     const syncXhrChanged = newSyncXhr !== syncXhr;
     syncXhr = newSyncXhr;
@@ -897,10 +988,7 @@
     notify("Settings saved.");
     if (syncXhrChanged) notify("Settings saved. Reload Nightshift to apply sync XHR support.");
     if (transportChanged && controllerPromise) {
-      void (async () => {
-        const controller = await getBrowserController();
-        controller.setTransport(await makeTransport(newTransport));
-      })().catch(error => {
+      void useTransport(newTransport).catch(error => {
         console.error(error);
         notify("Settings saved. Reload Nightshift to apply the new transport.");
       });

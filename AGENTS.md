@@ -66,7 +66,7 @@ The Play link opens `public/games.html`, whose page title is Interactive Enterta
 
 ## Current Interface Features
 
-The Browser, Play, and Cloak sections fill the app viewport and are selected from the sidebar. Cloaking preferences include a favorite method, a configurable page behind the cloaked tab, and custom tab title/icon values. Bookmark and settings data are stored locally and can be imported or exported; preserve validation and avoid overwriting unrelated browser storage. The bookmark bar is rendered only when at least one bookmark exists. The home footer credits `palmtree890` with a link to the GitHub profile.
+The Browser, Play, and Cloak sections fill the app viewport and are selected from the sidebar. Cloaking preferences include a favorite method, a configurable page behind the cloaked tab, and custom tab title/icon values. Bookmark and settings data are stored locally and can be imported or exported; preserve validation and avoid overwriting unrelated browser storage. Sites that load best with a particular transport remember it per domain under `nightshift-site-transports`; the retry button pins a host to the alternate transport, and changing the global transport in Settings clears the remembered list. The bookmark bar is rendered only when at least one bookmark exists. The home footer credits `palmtree890` with a link to the GitHub profile.
 
 ## Product Naming
 
