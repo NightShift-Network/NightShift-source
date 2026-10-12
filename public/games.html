@@ -103,7 +103,7 @@
     <footer><span>BROWSE FREELY</span><span>POWERED BY LUMINSDK</span></footer>
   </main>
   <section id="game-player" class="player" aria-label="Interactive entertainment player" hidden>
-    <div class="player-bar"><button id="player-back" type="button">← All interactive entertainment</button><strong id="player-title">Experience</strong><button id="player-proxy-route" type="button" aria-pressed="false">Route through proxy</button></div>
+    <div class="player-bar"><button id="player-back" type="button">← All interactive entertainment</button><strong id="player-title">Experience</strong><button id="player-proxy-route" type="button" aria-pressed="false">Route through browser</button></div>
     <iframe id="player-frame" title="Interactive entertainment" allow="autoplay; fullscreen; gamepad; pointer-lock" allowfullscreen></iframe>
   </section>
   <script src="https://cdn.jsdelivr.net/gh/luminsdk/script@latest/lumin.min.js"></script>
@@ -130,6 +130,7 @@
     let imageUrls = [];
     let browserFallback = false;
     let browserControllerPromise = null;
+    let fallbackFrame = null;
     let nativeFetch = window.fetch.bind(window);
 
     function reportError(error) {
@@ -199,26 +200,31 @@
       return browserControllerPromise;
     }
 
-    function proxiedUrl(url, controller) {
+    function proxiedUrl(url) {
       const target = new URL(url, location.href);
       if ((target.protocol !== "http:" && target.protocol !== "https:") || target.origin === location.origin) return null;
-      return `${controller.prefix}${controller.config.codec.encode(target.href)}`;
+      if (!fallbackFrame || !window.$scramjetController) return null;
+      return `${fallbackFrame.prefix}${window.$scramjetController.config.codec.encode(target.href)}`;
     }
 
     async function enableBrowserFallback() {
       const controller = await getBrowserController();
       if (!browserFallback) {
+        // Register a frame with the controller so every proxied SDK/API request
+        // carries the frame prefix ("/~/sj/<controller-id>/<frame-id>/<encoded>")
+        // the service worker needs to find a frame for the request.
+        fallbackFrame = controller.createFrame();
         const originalXhrOpen = XMLHttpRequest.prototype.open;
         XMLHttpRequest.prototype.open = function(method, url, ...args) {
           let requestUrl = url;
-          try { requestUrl = proxiedUrl(url, controller) || url; } catch {}
+          try { requestUrl = proxiedUrl(url) || url; } catch {}
           return originalXhrOpen.call(this, method, requestUrl, ...args);
         };
         window.fetch = (input, init) => {
           let sourceUrl;
           try { sourceUrl = input instanceof Request ? input.url : input; } catch { return nativeFetch(input, init); }
           let targetUrl;
-          try { targetUrl = proxiedUrl(sourceUrl, controller); } catch { return nativeFetch(input, init); }
+          try { targetUrl = proxiedUrl(sourceUrl); } catch { return nativeFetch(input, init); }
           if (!targetUrl) return nativeFetch(input, init);
           if (input instanceof Request) {
             const request = new Request(targetUrl, input);
@@ -242,7 +248,10 @@
       status.textContent = "Connecting to interactive entertainment…";
       initPromise = (async () => {
         try {
-          if (!window.Lumin && browserFallback) await loadScript(`${(await getBrowserController()).prefix}${window.$scramjetController.config.codec.encode("https://cdn.jsdelivr.net/gh/luminsdk/script@latest/lumin.min.js")}`);
+          if (!window.Lumin && browserFallback) {
+            if (!fallbackFrame) await enableBrowserFallback();
+            if (fallbackFrame?.prefix) await loadScript(`${fallbackFrame.prefix}${window.$scramjetController.config.codec.encode("https://cdn.jsdelivr.net/gh/luminsdk/script@latest/lumin.min.js")}`);
+          }
           if (!window.Lumin) throw new Error("The LuminSDK script could not be loaded from jsDelivr.");
           let initError = null;
           await window.Lumin.init({
@@ -373,11 +382,11 @@
 
     function updateProxyRouteButton() {
       const proxied = Boolean(activeGame) && proxiedPlayback;
-      proxyRouteButton.textContent = proxied ? "Use direct connection" : "Route through proxy";
+      proxyRouteButton.textContent = proxied ? "Use direct connection" : "Route through browser";
       proxyRouteButton.setAttribute("aria-pressed", String(proxied));
       proxyRouteButton.title = proxied
-        ? "Play the current experience directly without routing it through NightShift"
-        : "Play the current experience through the NightShift proxy";
+        ? "Play the current experience directly without routing it through the NightShift browser"
+        : "Play the current experience through the NightShift browser";
     }
 
     proxyRouteButton.addEventListener("click", async () => {
