@@ -57,6 +57,8 @@
     .player-bar { height: 48px; flex: none; display: flex; align-items: center; gap: 14px; padding: 0 16px; border-bottom: 1px solid var(--line); background: #111310; }
     .player-bar button,.player-bar a { border: 0; background: transparent; color: #aab49f; font: 11px var(--font); text-decoration: none; cursor: pointer; }
     .player-bar button:hover,.player-bar a:hover { color: var(--lime); }
+    .player-bar button[aria-pressed="true"] { color: var(--lime); }
+    .player-bar button:disabled { opacity: .5; cursor: default; }
     .player-bar strong { flex: 1; overflow: hidden; color: var(--text); text-align: center; font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
     .player iframe { width: 100%; height: 100%; flex: 1; border: 0; background: #000; }
     footer { display: flex; justify-content: space-between; gap: 12px; padding-top: 15px; border-top: 1px solid #242723; color: #71776e; font: 9px var(--mono); letter-spacing: .06em; }
@@ -101,7 +103,7 @@
     <footer><span>BROWSE FREELY</span><span>POWERED BY LUMINSDK</span></footer>
   </main>
   <section id="game-player" class="player" aria-label="Interactive entertainment player" hidden>
-    <div class="player-bar"><button id="player-back" type="button">← All interactive entertainment</button><strong id="player-title">Experience</strong><span aria-hidden="true"></span></div>
+    <div class="player-bar"><button id="player-back" type="button">← All interactive entertainment</button><strong id="player-title">Experience</strong><button id="player-proxy-route" type="button" aria-pressed="false">Route through proxy</button></div>
     <iframe id="player-frame" title="Interactive entertainment" allow="autoplay; fullscreen; gamepad; pointer-lock" allowfullscreen></iframe>
   </section>
   <script src="https://cdn.jsdelivr.net/gh/luminsdk/script@latest/lumin.min.js"></script>
@@ -115,6 +117,9 @@
     const player = document.querySelector("#game-player");
     const playerFrame = document.querySelector("#player-frame");
     const playerTitle = document.querySelector("#player-title");
+    const proxyRouteButton = document.querySelector("#player-proxy-route");
+    let activeGame = null;
+    let proxiedPlayback = false;
     let initPromise = null;
     let sdkReady = false;
     let currentPage = 1;
@@ -357,14 +362,54 @@
         playerFrame.src = url;
         player.hidden = false;
         status.hidden = true;
+        activeGame = game;
+        proxiedPlayback = false;
+        updateProxyRouteButton();
       } catch (error) {
         reportError(error);
       }
     }
 
+    function updateProxyRouteButton() {
+      const proxied = Boolean(activeGame) && proxiedPlayback;
+      proxyRouteButton.textContent = proxied ? "Use direct connection" : "Route through proxy";
+      proxyRouteButton.setAttribute("aria-pressed", String(proxied));
+      proxyRouteButton.title = proxied
+        ? "Play the current experience directly without routing it through NightShift"
+        : "Play the current experience through the NightShift proxy";
+    }
+
+    proxyRouteButton.addEventListener("click", async () => {
+      if (!activeGame) return;
+      const routeThroughProxy = !proxiedPlayback;
+      proxyRouteButton.disabled = true;
+      proxyRouteButton.textContent = routeThroughProxy ? "Routing through proxy…" : "Switching to direct…";
+      try {
+        const controller = routeThroughProxy ? await getBrowserController() : null;
+        const { url, meta } = await window.Lumin.getGameUrl(activeGame.id);
+        if (!controller) {
+          playerFrame.src = url;
+        } else {
+          const proxied = proxiedUrl(url, controller);
+          if (!proxied) throw new Error("This experience cannot be routed through the proxy.");
+          playerFrame.src = proxied;
+        }
+        playerTitle.textContent = meta?.name || activeGame.name || "Experience";
+        proxiedPlayback = routeThroughProxy;
+      } catch (error) {
+        reportError(error);
+      } finally {
+        proxyRouteButton.disabled = false;
+        updateProxyRouteButton();
+      }
+    });
+
     function closePlayer() {
       playerFrame.src = "about:blank";
       player.hidden = true;
+      activeGame = null;
+      proxiedPlayback = false;
+      updateProxyRouteButton();
       status.textContent = `${gamesGrid.querySelectorAll(".game-card").length} interactive entertainment experiences shown`;
       status.hidden = false;
     }
