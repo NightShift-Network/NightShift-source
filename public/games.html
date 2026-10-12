@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101110">
-  <title>Games · NightShift</title>
+  <title>Interactive Entertainment · NightShift</title>
   <link id="app-favicon" rel="icon" type="image/png" href="/images/nightshift.png">
   <link rel="icon" type="image/svg+xml" href="/images/nightshift.svg">
   <link rel="icon" href="/images/nightshift.ico" sizes="any">
@@ -91,18 +91,18 @@
     <div class="session"><span class="session-dot" aria-hidden="true"></span><span>NIGHTSHIFT ARCADE</span></div>
   </header>
   <main>
-    <div class="heading"><span class="kicker">GAME LIBRARY</span><h1>Games</h1><p>Pick a game and settle in.</p></div>
-    <div class="games-toolbar"><label class="search"><span aria-hidden="true">⌕</span><input id="game-search" type="search" placeholder="Search games" autocomplete="off"></label></div>
-    <p id="status" role="status" aria-live="polite">Connecting to the game library…</p>
+    <div class="heading"><span class="kicker">INTERACTIVE ENTERTAINMENT</span><h1>Interactive Entertainment</h1><p>Pick an experience and settle in.</p></div>
+    <div class="games-toolbar"><label class="search"><span aria-hidden="true">⌕</span><input id="game-search" type="search" placeholder="Search interactive entertainment" autocomplete="off"></label></div>
+    <p id="status" role="status" aria-live="polite">Connecting to interactive entertainment…</p>
     <div id="games-grid" aria-live="polite"></div>
-    <nav id="games-pagination" class="games-pagination" aria-label="Game pages" hidden></nav>
+    <nav id="games-pagination" class="games-pagination" aria-label="Interactive entertainment pages" hidden></nav>
     <button id="retry" class="retry-button" type="button" hidden>Try again</button>
     <button id="browser-retry" class="retry-button" type="button" hidden>Try in browser</button>
     <footer><span>BROWSE FREELY</span><span>POWERED BY LUMINSDK</span></footer>
   </main>
-  <section id="game-player" class="player" aria-label="Game player" hidden>
-    <div class="player-bar"><button id="player-back" type="button">← All games</button><strong id="player-title">Game</strong><span aria-hidden="true"></span></div>
-    <iframe id="player-frame" title="Game" allow="autoplay; fullscreen; gamepad; pointer-lock" allowfullscreen></iframe>
+  <section id="game-player" class="player" aria-label="Interactive entertainment player" hidden>
+    <div class="player-bar"><button id="player-back" type="button">← All interactive entertainment</button><strong id="player-title">Experience</strong><span aria-hidden="true"></span></div>
+    <iframe id="player-frame" title="Interactive entertainment" allow="autoplay; fullscreen; gamepad; pointer-lock" allowfullscreen></iframe>
   </section>
   <script src="https://cdn.jsdelivr.net/gh/luminsdk/script@latest/lumin.min.js"></script>
   <script>
@@ -128,7 +128,7 @@
 
     function reportError(error) {
       console.error("LuminSDK error:", error);
-      status.textContent = `Games could not be loaded: ${error?.message || error || "Check your connection and try again."}`;
+      status.textContent = `Interactive entertainment could not be loaded: ${error?.message || error || "Check your connection and try again."}`;
       retry.hidden = false;
       browserRetry.hidden = browserFallback;
     }
@@ -221,7 +221,7 @@
       }
       retry.hidden = true;
       browserRetry.hidden = true;
-      status.textContent = "Connecting to the game library…";
+      status.textContent = "Connecting to interactive entertainment…";
       initPromise = (async () => {
         try {
           if (!window.Lumin && browserFallback) await loadScript(`${(await getBrowserController()).prefix}${window.$scramjetController.config.codec.encode("https://cdn.jsdelivr.net/gh/luminsdk/script@latest/lumin.min.js")}`);
@@ -268,7 +268,7 @@
     async function loadPage(page) {
       const thisRequest = ++requestId;
       status.hidden = false;
-      status.textContent = "Loading games…";
+      status.textContent = "Loading interactive entertainment…";
       retry.hidden = true;
       pagination.hidden = true;
       try {
@@ -295,7 +295,7 @@
           const card = document.createElement("button");
           card.type = "button";
           card.className = "game-card";
-          card.setAttribute("aria-label", `Play ${game.name || "game"}`);
+          card.setAttribute("aria-label", `Play ${game.name || "interactive entertainment"}`);
           const art = document.createElement("span");
           art.className = "game-art";
           if (imageUrl) {
@@ -312,7 +312,7 @@
           const details = document.createElement("span");
           details.className = "game-details";
           const title = document.createElement("strong");
-          title.textContent = game.name || "Untitled game";
+          title.textContent = game.name || "Untitled experience";
           details.append(title);
           if (game.category) {
             const category = document.createElement("small");
@@ -326,10 +326,10 @@
         if (!cards.length) {
           const empty = document.createElement("p");
           empty.className = "empty";
-          empty.textContent = "No games found.";
+          empty.textContent = "No interactive entertainment found.";
           gamesGrid.append(empty);
         }
-        status.textContent = `${Number(result.total) || cards.length} games in the library`;
+        status.textContent = `${Number(result.total) || cards.length} interactive entertainment experiences in the library`;
         renderPagination();
       } catch (error) {
         if (thisRequest === requestId) reportError(error);
@@ -338,10 +338,10 @@
 
     async function playGame(game) {
       status.hidden = false;
-      status.textContent = `Opening ${game.name || "game"}…`;
+      status.textContent = `Opening ${game.name || "interactive entertainment"}…`;
       try {
         const { url, meta } = await window.Lumin.getGameUrl(game.id);
-        playerTitle.textContent = meta?.name || game.name || "Game";
+        playerTitle.textContent = meta?.name || game.name || "Experience";
         playerFrame.src = url;
         player.hidden = false;
         status.hidden = true;
@@ -353,7 +353,7 @@
     function closePlayer() {
       playerFrame.src = "about:blank";
       player.hidden = true;
-      status.textContent = `${gamesGrid.querySelectorAll(".game-card").length} games shown`;
+      status.textContent = `${gamesGrid.querySelectorAll(".game-card").length} interactive entertainment experiences shown`;
       status.hidden = false;
     }
 

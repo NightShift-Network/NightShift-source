@@ -70,14 +70,14 @@ sudo ./setup.sh --delete-certificate
 
 ## Features
 
-- Full-screen sidebar navigation for Proxy, Games, and quick cloaking access
+- Full-screen sidebar navigation for Browser, Interactive Entertainment, and quick cloaking access
 - Multi-tab browsing, address/search bar, an editable homepage, and configurable quick-access shortcuts
 - A bookmarks bar that appears only when bookmarks are saved; bookmarks persist in browser storage
 - Search choices for DuckDuckGo, Brave, Startpage, Palmtree Search, and custom URL templates
 - Epoxy and libcurl transport choices
 - Optional `about:blank` and blob-tab cloaking, with a favorite method and configurable tab title and icon
 - Configurable page shown behind a cloaked tab
-- A separate Games page with a custom dark-themed catalog and player powered by LuminSDK
+- A separate Interactive Entertainment page with a custom dark-themed catalog and player powered by LuminSDK
 - Creator credit linking to [palmtree890's GitHub profile](https://github.com/palmtree890)
 - Browser-local settings, bookmarks, and import/export for search, transport, quick access, cloaking, and bookmarks
 
@@ -85,7 +85,7 @@ Compatibility varies; sites may limit proxy traffic or rely on browser features 
 
 ## How It Is Built
 
-Nightshift is built with Node.js and ES modules. The server uses Express to serve the static browser app and the Scramjet, controller, Epoxy, and libcurl assets; Wisp handles the `/wisp/` WebSocket transport. The frontend is plain HTML, CSS, and browser JavaScript in `public/`, with no frontend build step. Scramjet runs proxied pages in the browser. The separate `public/games.html` page uses LuminSDK's headless methods to render its own game catalog and player. Bookmarks and preferences are stored in browser `localStorage`. The server port is selected with `PORT` (default `3000`).
+Nightshift is built with Node.js and ES modules. The server uses Express to serve the static browser app and the Scramjet, controller, Epoxy, and libcurl assets; Wisp handles the `/wisp/` WebSocket transport. The frontend is plain HTML, CSS, and browser JavaScript in `public/`, with no frontend build step. Scramjet runs proxied pages in the browser. The separate `public/games.html` page uses LuminSDK's headless methods to render its interactive entertainment catalog and player. Bookmarks and preferences are stored in browser `localStorage`. The server port is selected with `PORT` (default `3000`).
 
 ## Source and Proxy Repositories
 
@@ -389,7 +389,7 @@ If a certificate expires before a successful renewal, browsers will report that 
 
 ### Firefox Reports `NS_ERROR_DOM_COEP_FAILED`
 
-NightShift no longer sets `Cross-Origin-Embedder-Policy`, because that policy prevents Firefox from embedding game pages that do not opt in. Restart NightShift after updating it. For the Docker setup above:
+NightShift no longer sets `Cross-Origin-Embedder-Policy`, because that policy prevents Firefox from embedding interactive entertainment pages that do not opt in. Restart NightShift after updating it. For the Docker setup above:
 
 ```sh
 docker restart nightshift

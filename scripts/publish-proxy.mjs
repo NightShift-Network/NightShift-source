@@ -134,7 +134,7 @@ Run the platform-specific command printed by \`pm2 startup\` (it may require \`s
 
 ## Using NightShift
 
-Open the NightShift page in your browser, enter a website address or search term, and press Enter. Use the sidebar to open Games or quick cloaking. Proxy preferences and bookmarks are stored in that browser.
+Open the NightShift page in your browser, enter a website address or search term, and press Enter. Use the sidebar to open Interactive Entertainment or quick cloaking. Proxy preferences and bookmarks are stored in that browser.
 
 ## Run with Docker Compose
 
