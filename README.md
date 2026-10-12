@@ -7,6 +7,8 @@
 
 <br>
 
+This is the readable source code repository for [NightShift Proxy](https://github.com/NightShift-Network/NightShift-proxy). For installation, use the generated proxy repository; this repository is for reviewing and changing the source code.
+
 NightShift uses [Scramjet](https://github.com/MercuryWorkshop/scramjet) to proxy browser traffic and [Wisp](https://github.com/MercuryWorkshop/wisp-js) for its WebSocket transport.
 
 ## Easy Install
@@ -22,8 +24,8 @@ The fastest way to deploy NightShift on a Debian or Ubuntu VPS with Docker, Ngin
 ### 1. Clone and Run Setup
 
 ```sh
-git clone https://github.com/NightShift-Network/NightShift-source.git
-cd NightShift-source
+git clone https://github.com/NightShift-Network/NightShift-proxy.git
+cd NightShift-proxy
 sudo ./setup.sh --domain your.domain.example --email you@example.com
 ```
 ### NOTE: If the setup script fails you can simply run it again and it will likely fix the issue.
@@ -107,8 +109,8 @@ The script checks for Node.js, npm, an ignored `.env` with the token, and a clea
 ### Run locally
 
 ```sh
-git clone https://github.com/NightShift-Network/NightShift-source.git
-cd NightShift-source
+git clone https://github.com/NightShift-Network/NightShift-proxy.git
+cd NightShift-proxy
 npm install
 npm start
 ```

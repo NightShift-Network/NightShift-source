@@ -85,6 +85,10 @@ npm start
 
 Open http://localhost:3000. To use another port, set \`PORT\`, for example \`PORT=8080 npm start\`.
 
+## Using NightShift
+
+Open the NightShift page in your browser, enter a website address or search term, and press Enter. Use the sidebar to open Games or quick cloaking. Proxy preferences and bookmarks are stored in that browser.
+
 ## Run with Docker Compose
 
 \`\`\`sh
@@ -93,7 +97,11 @@ cd NightShift-proxy
 docker compose up -d --build
 \`\`\`
 
-By default, Compose binds the app to \`127.0.0.1:3005\`. For remote access, put it behind HTTPS and configure the reverse proxy to support WebSocket upgrades on \`/wisp/\`; service workers require HTTPS outside localhost.
+By default, Compose binds the app to \`127.0.0.1:3005\`. Open http://127.0.0.1:3005 to use it locally. For remote access, put it behind HTTPS and configure the reverse proxy to support WebSocket upgrades on \`/wisp/\`; service workers require HTTPS outside localhost. Restrict public access or add authentication before exposing an instance, since anyone who can reach it can use it.
+
+## Updating
+
+For a Node.js install, pull the latest proxy repository changes, run \`npm install\`, and restart NightShift. For Docker Compose, pull the changes and rebuild with \`docker compose up -d --build\`.
 
 ## Source code
 
