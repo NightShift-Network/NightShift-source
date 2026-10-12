@@ -70,7 +70,7 @@ sudo ./setup.sh --delete-certificate
 
 ## Features
 
-- Full-screen sidebar navigation for Browser, Interactive Entertainment, and quick cloaking access
+- Full-screen sidebar navigation for Browser, Play, and quick cloaking access
 - Multi-tab browsing, address/search bar, an editable homepage, and configurable quick-access shortcuts
 - A bookmarks bar that appears only when bookmarks are saved; bookmarks persist in browser storage
 - Search choices for DuckDuckGo, Brave, Startpage, Palmtree Search, and custom URL templates

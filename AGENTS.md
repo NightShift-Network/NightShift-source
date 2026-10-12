@@ -2,7 +2,7 @@
 
 ## Project Structure
 
-NightShift is a Node.js/Express proxy. `server.js` serves the app and routes `/wisp/` WebSocket upgrades. `public/` holds the interface and Scramjet service worker; `index.html`, `style.css`, and `app.js` make up the proxy UI, while `games.html` is a separate full-page, headless LuminSDK interactive entertainment catalog and player. The main UI has full-screen sidebar sections for Browser, Interactive Entertainment, and quick cloaking. Epoxy and libcurl are selectable transports. Frontend development uses the plain files in `public/`; `scripts/publish-proxy.mjs` transforms them for the public distribution repository.
+NightShift is a Node.js/Express proxy. `server.js` serves the app and routes `/wisp/` WebSocket upgrades. `public/` holds the interface and Scramjet service worker; `index.html`, `style.css`, and `app.js` make up the proxy UI, while `games.html` is a separate full-page, headless LuminSDK interactive entertainment catalog and player. The main UI has full-screen sidebar sections for Browser, Play, and quick cloaking. Epoxy and libcurl are selectable transports. Frontend development uses the plain files in `public/`; `scripts/publish-proxy.mjs` transforms them for the public distribution repository.
 
 ## Development Commands
 
@@ -62,11 +62,11 @@ Treat the proxy repository as generated output: make fixes in `NightShift-source
 
 ## Interactive Entertainment and Service Worker
 
-The Interactive Entertainment link opens `public/games.html`. It uses LuminSDK headless mode and builds its themed catalog/player with `getGames`, `getImageUrl`, and `getGameUrl`; the standard UI is inside Shadow DOM. Entertainment URLs are single-use; request a fresh one per launch. `public/sw.js` routes Scramjet's same-origin requests and passes SDK/API requests directly to the browser. Preserve this bypass. For Lumin failures, inspect Firefox Network details; cross-origin `responseStatus: 0` alone does not prove failure.
+The Play link opens `public/games.html`, whose page title is Interactive Entertainment. It uses LuminSDK headless mode and builds its themed catalog/player with `getGames`, `getImageUrl`, and `getGameUrl`; the standard UI is inside Shadow DOM. Entertainment URLs are single-use; request a fresh one per launch. `public/sw.js` routes Scramjet's same-origin requests and passes SDK/API requests directly to the browser. Preserve this bypass. For Lumin failures, inspect Firefox Network details; cross-origin `responseStatus: 0` alone does not prove failure.
 
 ## Current Interface Features
 
-The Browser, Interactive Entertainment, and Cloak sections fill the app viewport and are selected from the sidebar. Cloaking preferences include a favorite method, a configurable page behind the cloaked tab, and custom tab title/icon values. Bookmark and settings data are stored locally and can be imported or exported; preserve validation and avoid overwriting unrelated browser storage. The bookmark bar is rendered only when at least one bookmark exists. The home footer credits `palmtree890` with a link to the GitHub profile.
+The Browser, Play, and Cloak sections fill the app viewport and are selected from the sidebar. Cloaking preferences include a favorite method, a configurable page behind the cloaked tab, and custom tab title/icon values. Bookmark and settings data are stored locally and can be imported or exported; preserve validation and avoid overwriting unrelated browser storage. The bookmark bar is rendered only when at least one bookmark exists. The home footer credits `palmtree890` with a link to the GitHub profile.
 
 ## Product Naming
 
