@@ -11,18 +11,67 @@ readonly RELOAD_HOOK="/etc/letsencrypt/renewal-hooks/deploy/50-nightshift-nginx-
 readonly RENEW_CRON="/etc/cron.d/nightshift-certbot-renew"
 
 MODE="setup"
-DOMAIN=""
+DOMAINS=()
 EMAIL=""
 PORT_ARG=""
 YES="no"
+INTERACTIVE="no"
 DELETE_CERTIFICATE="no"
+
+add_domains() {
+  local input="$1"
+  input="${input//,/ }"
+  local d
+  for d in $input; do
+    d="$(printf '%s' "$d" | tr -d '[:space:]')"
+    [[ -z "$d" ]] && continue
+    local exists=false
+    local existing
+    for existing in "${DOMAINS[@]}"; do
+      if [[ "$existing" == "$d" ]]; then
+        exists=true
+        break
+      fi
+    done
+    if [[ $exists == false ]]; then
+      DOMAINS+=("$d")
+    fi
+  done
+}
+
+validate_domain() {
+  local d="$1"
+  if [[ -z "$d" ]]; then return 1; fi
+  if [[ ! $d =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ || $d != *.* || $d == *..* ]]; then
+    return 1
+  fi
+  local IFS='.'
+  local labels=($d)
+  local label
+  for label in "${labels[@]}"; do
+    if [[ -z "$label" || ${#label} -gt 63 ]]; then return 1; fi
+    if [[ $label =~ ^- || $label =~ -$ ]]; then return 1; fi
+  done
+  return 0
+}
+
+validate_email() {
+  local e="$1"
+  [[ $e =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]]
+}
+
+validate_port() {
+  local p="$1"
+  [[ $p =~ ^[0-9]+$ ]] && (( 10#$p >= 1024 && 10#$p <= 65535 ))
+}
 
 usage() {
   cat <<'HELP'
 NightShift VPS setup
 
 Usage:
-  sudo ./setup.sh --domain HOSTNAME --email EMAIL [--port PORT] [--yes]
+  sudo ./setup.sh [--interactive|-i]
+  sudo ./setup.sh --domain HOSTNAME [--domain HOSTNAME...] --email EMAIL [--port PORT] [--yes]
   sudo ./setup.sh --update
   sudo ./setup.sh --start|--stop|--restart|--logs
   sudo ./setup.sh --remove [--delete-certificate]
@@ -34,7 +83,9 @@ NightShift image; binds it to 127.0.0.1 on the selected host port (default
 3005); configures Nginx and HTTPS; and enables certificate renewal.
 
 Options:
-  --domain HOSTNAME       Public DNS name pointing to this VPS
+  -i, --interactive       Run interactive setup wizard
+  --domain HOSTNAME       Public DNS name pointing to this VPS (repeat or comma-separate)
+  --domains HOSTNAMES     Alias for --domain (e.g. --domains "example.com, www.example.com")
   --email EMAIL           Contact email for a new Let's Encrypt certificate
   --port PORT             Loopback host port for NightShift (default 3005)
   --yes                   Accept safe replacements and skip confirmation prompts
@@ -48,16 +99,21 @@ Options:
   --remove-cert           Alias for --delete-certificate
   --remove-ssl            Alias for --delete-certificate
   --remove-nginx          Remove only the NightShift Nginx site configuration
-  --help                  Show this help
+  --help, -h              Show this help
 
-Run setup from a clone of this repository. The hostname must resolve to the
+Run setup from a clone of this repository. The hostname(s) must resolve to the
 VPS and public TCP ports 80 and 443 must be reachable for certificate setup.
 HELP
 }
 
 while (($#)); do
   case "$1" in
-    --domain) [[ $# -ge 2 ]] || { echo "--domain needs a value" >&2; exit 2; }; DOMAIN="$2"; shift 2 ;;
+    -i|--interactive) INTERACTIVE="yes"; shift ;;
+    --domain|--domains)
+      [[ $# -ge 2 ]] || { echo "$1 needs a value" >&2; exit 2; }
+      add_domains "$2"
+      shift 2
+      ;;
     --email) [[ $# -ge 2 ]] || { echo "--email needs a value" >&2; exit 2; }; EMAIL="$2"; shift 2 ;;
     --port) [[ $# -ge 2 ]] || { echo "--port needs a value" >&2; exit 2; }; PORT_ARG="$2"; shift 2 ;;
     --yes) YES="yes"; shift ;;
@@ -160,26 +216,110 @@ read_saved_port() {
   fi
 }
 
-read_saved_domain() {
-  if [[ -n "${DOMAIN:-}" ]]; then
-    printf '%s\n' "$DOMAIN"
+read_saved_email() {
+  if [[ -n "${EMAIL:-}" ]]; then
+    printf '%s\n' "$EMAIL"
     return 0
   fi
   if [[ -f $ENV_FILE ]]; then
-    local d
-    d="$(sed -n 's/^NIGHTSHIFT_DOMAIN=//p' "$ENV_FILE" | tail -n 1)"
-    if [[ -n $d ]]; then
-      printf '%s\n' "$d"
+    local e
+    e="$(sed -n 's/^NIGHTSHIFT_EMAIL=//p' "$ENV_FILE" | tail -n 1)"
+    if [[ -n $e ]]; then
+      printf '%s\n' "$e"
       return 0
     fi
   fi
-  if [[ -f "$SETUP_STATE/domain" ]]; then
-    local d
-    d="$(cat "$SETUP_STATE/domain" 2>/dev/null || true)"
-    if [[ -n $d ]]; then
-      printf '%s\n' "$d"
+  if [[ -f "$SETUP_STATE/email" ]]; then
+    local e
+    e="$(cat "$SETUP_STATE/email" 2>/dev/null || true)"
+    if [[ -n $e ]]; then
+      printf '%s\n' "$e"
       return 0
     fi
+  fi
+  local renewal_conf
+  for renewal_conf in /etc/letsencrypt/renewal/*.conf; do
+    if [[ -f "$renewal_conf" ]]; then
+      local e
+      e="$(sed -n 's/^[[:space:]]*email[[:space:]]*=[[:space:]]*//p' "$renewal_conf" | head -n 1)"
+      if [[ -n $e ]]; then
+        printf '%s\n' "$e"
+        return 0
+      fi
+    fi
+  done
+  return 1
+}
+
+read_saved_domains() {
+  local found=()
+  add_unique() {
+    local item="$1"
+    local ex
+    for ex in "${found[@]}"; do
+      if [[ "$ex" == "$item" ]]; then return 0; fi
+    done
+    found+=("$item")
+  }
+
+  if [[ -f $ENV_FILE ]]; then
+    local raw_domains
+    raw_domains="$(sed -n 's/^NIGHTSHIFT_DOMAINS=//p' "$ENV_FILE" | tail -n 1 | tr -d '"'"'" || true)"
+    if [[ -z $raw_domains ]]; then
+      raw_domains="$(sed -n 's/^NIGHTSHIFT_DOMAIN=//p' "$ENV_FILE" | tail -n 1 || true)"
+    fi
+    if [[ -n $raw_domains ]]; then
+      raw_domains="${raw_domains//,/ }"
+      local d
+      for d in $raw_domains; do
+        d="$(printf '%s' "$d" | tr -d '[:space:]')"
+        [[ -n $d ]] && add_unique "$d"
+      done
+    fi
+  fi
+
+  if [[ ${#found[@]} -eq 0 && -f "$SETUP_STATE/domains" ]]; then
+    local line
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      line="${line//,/ }"
+      local d
+      for d in $line; do
+        d="$(printf '%s' "$d" | tr -d '[:space:]')"
+        [[ -n $d ]] && add_unique "$d"
+      done
+    done < "$SETUP_STATE/domains"
+  fi
+
+  if [[ ${#found[@]} -eq 0 && -f "$SETUP_STATE/domain" ]]; then
+    local d
+    d="$(cat "$SETUP_STATE/domain" 2>/dev/null || true)"
+    d="$(printf '%s' "$d" | tr -d '[:space:]')"
+    [[ -n $d ]] && add_unique "$d"
+  fi
+
+  if [[ ${#found[@]} -eq 0 && -f "$NGINX_SITE" ]]; then
+    local d
+    while read -r d; do
+      [[ -n $d ]] && add_unique "$d"
+    done < <(awk '/^[[:space:]]*server_name[[:space:]]/ {
+      sub(/;.*/, "")
+      for (i=2; i<=NF; i++) {
+        if ($i != "_" && $i ~ /\./) print $i
+      }
+    }' "$NGINX_SITE")
+  fi
+
+  if [[ ${#found[@]} -gt 0 ]]; then
+    printf '%s\n' "${found[@]}"
+    return 0
+  fi
+  return 1
+}
+
+read_saved_domain() {
+  if [[ ${#DOMAINS[@]} -gt 0 ]]; then
+    printf '%s\n' "${DOMAINS[0]}"
+    return 0
   fi
   if [[ -f "$NGINX_SITE" ]]; then
     local d
@@ -188,13 +328,26 @@ read_saved_domain() {
       printf '%s\n' "$d"
       return 0
     fi
-    d="$(awk '/server_name/ {sub(/;/, ""); for (i=2; i<=NF; i++) if ($i != "_" && $i ~ /\./) {print $i; exit}}' "$NGINX_SITE")"
+  fi
+  local first_d
+  first_d="$(read_saved_domains 2>/dev/null | head -n 1 || true)"
+  if [[ -n "$first_d" ]]; then
+    printf '%s\n' "$first_d"
+    return 0
+  fi
+  return 1
+}
+
+read_saved_cert_name() {
+  if [[ -f "$NGINX_SITE" ]]; then
+    local d
+    d="$(sed -n 's|.*ssl_certificate /etc/letsencrypt/live/\([^/]*\)/fullchain\.pem;.*|\1|p' "$NGINX_SITE" | head -n 1)"
     if [[ -n $d ]]; then
       printf '%s\n' "$d"
       return 0
     fi
   fi
-  return 1
+  read_saved_domain
 }
 
 remove_nginx_config() {
@@ -243,10 +396,193 @@ remove_ssl_certificate() {
   fi
 }
 
+interactive_setup() {
+  if [[ $INTERACTIVE != yes && ${#DOMAINS[@]} -eq 0 && -z $EMAIL && $YES != yes ]]; then
+    if docker container inspect nightshift >/dev/null 2>&1 || [[ -f "$NGINX_SITE" || -f "$ENV_FILE" ]]; then
+      echo "=================================================="
+      echo "        NightShift VPS Setup & Management"
+      echo "=================================================="
+      local saved_str
+      saved_str="$(read_saved_domains 2>/dev/null | paste -sd, - | sed 's/,/, /g' || true)"
+      if [[ -n $saved_str ]]; then
+        echo "Configured domain(s): $saved_str"
+      fi
+      echo ""
+      echo "NightShift is already installed. Select an action:"
+      echo "  1) Reconfigure / update domain(s) and SSL"
+      echo "  2) Update NightShift container (git pull & rebuild)"
+      echo "  3) Start container"
+      echo "  4) Stop container"
+      echo "  5) Restart container"
+      echo "  6) Follow container logs"
+      echo "  7) Remove NightShift site & container"
+      echo "  8) Exit"
+      echo ""
+      local choice=""
+      read -r -p "Select an option [1]: " choice </dev/tty || exit 0
+      choice="${choice:-1}"
+      case "$choice" in
+        1) ;;
+        2) MODE="update"; return 0 ;;
+        3) MODE="start"; return 0 ;;
+        4) MODE="stop"; return 0 ;;
+        5) MODE="restart"; return 0 ;;
+        6) MODE="logs"; return 0 ;;
+        7) MODE="remove"; return 0 ;;
+        8|q|Q) echo "Exiting."; exit 0 ;;
+        *) echo "Invalid selection." >&2; exit 1 ;;
+      esac
+    fi
+  fi
+
+  echo "=================================================="
+  echo "          NightShift Interactive Setup"
+  echo "=================================================="
+  echo ""
+
+  if [[ ${#DOMAINS[@]} -eq 0 || $INTERACTIVE == yes ]]; then
+    local default_domains=""
+    if [[ ${#DOMAINS[@]} -gt 0 ]]; then
+      default_domains="${DOMAINS[*]}"
+    else
+      local saved_list=()
+      mapfile -t saved_list < <(read_saved_domains 2>/dev/null || true)
+      if [[ ${#saved_list[@]} -gt 0 ]]; then
+        default_domains="${saved_list[*]}"
+      fi
+    fi
+
+    while true; do
+      echo "Enter public domain name(s) pointing to this VPS."
+      echo "Multiple domains can be separated by spaces or commas."
+      echo "(e.g. nightshift.example.com, www.example.com)"
+      local input_domains=""
+      if [[ -n $default_domains ]]; then
+        read -r -p "Domain name(s) [$default_domains]: " input_domains </dev/tty || exit 1
+        input_domains="${input_domains:-$default_domains}"
+      else
+        read -r -p "Domain name(s): " input_domains </dev/tty || exit 1
+      fi
+
+      local parsed_domains=()
+      local temp_input="${input_domains//,/ }"
+      local d
+      for d in $temp_input; do
+        d="$(printf '%s' "$d" | tr -d '[:space:]')"
+        [[ -z "$d" ]] && continue
+        parsed_domains+=("$d")
+      done
+
+      if [[ ${#parsed_domains[@]} -eq 0 ]]; then
+        echo "Please enter at least one domain name." >&2
+        echo ""
+        continue
+      fi
+
+      local all_valid=true
+      for d in "${parsed_domains[@]}"; do
+        if ! validate_domain "$d"; then
+          echo "Invalid hostname '$d'. Supply a valid DNS hostname (no scheme, path, or port)." >&2
+          all_valid=false
+          break
+        fi
+      done
+
+      if [[ $all_valid == true ]]; then
+        DOMAINS=()
+        for d in "${parsed_domains[@]}"; do
+          local exists=false
+          local existing
+          for existing in "${DOMAINS[@]}"; do
+            if [[ "$existing" == "$d" ]]; then exists=true; break; fi
+          done
+          if [[ $exists == false ]]; then DOMAINS+=("$d"); fi
+        done
+        break
+      fi
+      echo ""
+    done
+    echo ""
+  fi
+
+  if [[ -z $EMAIL || $INTERACTIVE == yes ]]; then
+    local default_email="${EMAIL:-$(read_saved_email 2>/dev/null || true)}"
+    while true; do
+      echo "Enter a contact email address for Let's Encrypt renewal notices."
+      local input_email=""
+      if [[ -n $default_email ]]; then
+        read -r -p "Contact email [$default_email]: " input_email </dev/tty || exit 1
+        input_email="${input_email:-$default_email}"
+      else
+        read -r -p "Contact email: " input_email </dev/tty || exit 1
+      fi
+
+      input_email="$(printf '%s' "$input_email" | tr -d '[:space:]')"
+      if validate_email "$input_email"; then
+        EMAIL="$input_email"
+        break
+      else
+        echo "Please enter a valid email address (e.g. user@example.com)." >&2
+        echo ""
+      fi
+    done
+    echo ""
+  fi
+
+  if [[ -z $PORT_ARG && $INTERACTIVE == yes ]]; then
+    local default_port="${PORT_ARG:-$(read_saved_port || true)}"
+    default_port="${default_port:-3005}"
+    while true; do
+      echo "Enter loopback port for the NightShift container."
+      local input_port=""
+      read -r -p "Container port [$default_port]: " input_port </dev/tty || exit 1
+      input_port="${input_port:-$default_port}"
+      input_port="$(printf '%s' "$input_port" | tr -d '[:space:]')"
+      if validate_port "$input_port"; then
+        PORT_ARG="$input_port"
+        break
+      else
+        echo "Port must be an integer between 1024 and 65535." >&2
+        echo ""
+      fi
+    done
+    echo ""
+  fi
+
+  echo "--------------------------------------------------"
+  echo "NightShift Setup Summary:"
+  if [[ ${#DOMAINS[@]} -eq 1 ]]; then
+    echo "  Domain:        ${DOMAINS[0]}"
+  else
+    echo "  Domains:       ${DOMAINS[*]}"
+    echo "  Primary/Cert:  ${DOMAINS[0]}"
+  fi
+  echo "  Contact Email: $EMAIL"
+  echo "  Host Port:     ${PORT_ARG:-${PORT:-3005}} (127.0.0.1:${PORT_ARG:-${PORT:-3005}})"
+  echo "--------------------------------------------------"
+  if ! confirm "Proceed with setup?"; then
+    echo "Setup cancelled."
+    exit 0
+  fi
+  echo ""
+}
+
+if [[ $MODE == setup ]]; then
+  if [[ $INTERACTIVE == yes ]]; then
+    if [[ ! -r /dev/tty ]]; then
+      echo "Interactive mode requires an interactive terminal (/dev/tty)." >&2
+      exit 1
+    fi
+    interactive_setup
+  elif [[ ${#DOMAINS[@]} -eq 0 || -z $EMAIL ]] && [[ $YES != yes && -r /dev/tty ]]; then
+    interactive_setup
+  fi
+fi
+
 PORT="${PORT_ARG:-$(read_saved_port)}"
 PORT="${PORT:-3005}"
 
-if [[ ! $PORT =~ ^[0-9]+$ ]] || ((10#$PORT < 1024 || 10#$PORT > 65535)); then
+if ! validate_port "$PORT"; then
   echo "Port must be a number from 1024 through 65535." >&2
   exit 2
 fi
@@ -284,7 +620,7 @@ case "$MODE" in
   remove)
     command -v docker >/dev/null && "${COMPOSE[@]}" down || true
     remove_nginx_config
-    target_domain="$(read_saved_domain || true)"
+    target_domain="$(read_saved_cert_name || true)"
     if [[ $DELETE_CERTIFICATE != yes && -n "$target_domain" && $YES != yes && -r /dev/tty ]]; then
       if confirm "Also delete the Let's Encrypt SSL certificate for $target_domain?"; then
         DELETE_CERTIFICATE="yes"
@@ -293,7 +629,7 @@ case "$MODE" in
     if [[ $DELETE_CERTIFICATE == yes ]]; then
       if [[ -n "$target_domain" ]]; then
         remove_ssl_certificate "$target_domain"
-        rm -f "$SETUP_STATE/domain"
+        rm -f "$SETUP_STATE/domain" "$SETUP_STATE/domains" "$SETUP_STATE/email"
       else
         echo "Could not identify domain; SSL certificate was kept. Specify with --domain HOSTNAME." >&2
       fi
@@ -305,7 +641,7 @@ case "$MODE" in
     ;;
   remove_nginx)
     remove_nginx_config
-    target_domain="$(read_saved_domain || true)"
+    target_domain="$(read_saved_cert_name || true)"
     if [[ $DELETE_CERTIFICATE != yes && -n "$target_domain" && $YES != yes && -r /dev/tty ]]; then
       if confirm "Also delete the Let's Encrypt SSL certificate for $target_domain?"; then
         DELETE_CERTIFICATE="yes"
@@ -314,7 +650,7 @@ case "$MODE" in
     if [[ $DELETE_CERTIFICATE == yes ]]; then
       if [[ -n "$target_domain" ]]; then
         remove_ssl_certificate "$target_domain"
-        rm -f "$SETUP_STATE/domain"
+        rm -f "$SETUP_STATE/domain" "$SETUP_STATE/domains" "$SETUP_STATE/email"
       else
         echo "Could not identify domain; SSL certificate was kept. Specify with --domain HOSTNAME." >&2
       fi
@@ -325,7 +661,12 @@ case "$MODE" in
     exit 0
     ;;
   delete_cert)
-    target_domain="$(read_saved_domain || true)"
+    target_domain="$(read_saved_cert_name || true)"
+    if [[ -z "$target_domain" ]]; then
+      if [[ -r /dev/tty && $YES != yes ]]; then
+        read -r -p "Enter domain or certificate name to delete: " target_domain </dev/tty || true
+      fi
+    fi
     if [[ -z "$target_domain" ]]; then
       echo "Could not identify domain. Specify with --domain HOSTNAME." >&2
       exit 1
@@ -339,18 +680,41 @@ case "$MODE" in
       fi
     fi
     remove_ssl_certificate "$target_domain"
-    rm -f "$SETUP_STATE/domain"
+    rm -f "$SETUP_STATE/domain" "$SETUP_STATE/domains" "$SETUP_STATE/email"
     exit 0
     ;;
 esac
 
-if [[ ! $DOMAIN =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ || $DOMAIN != *.* || $DOMAIN == *..* ]]; then
-  echo "Supply a valid DNS hostname with --domain (no scheme, path, or port)." >&2
+if [[ ${#DOMAINS[@]} -eq 0 ]]; then
+  echo "Supply valid DNS hostname(s) with --domain (no scheme, path, or port)." >&2
   exit 2
 fi
-if [[ ! $EMAIL =~ ^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$ ]]; then
+for d in "${DOMAINS[@]}"; do
+  if ! validate_domain "$d"; then
+    echo "Invalid domain hostname: '$d'. Supply valid DNS hostname(s) (no scheme, path, or port)." >&2
+    exit 2
+  fi
+done
+if ! validate_email "$EMAIL"; then
   echo "Supply a valid contact email with --email." >&2
   exit 2
+fi
+
+PRIMARY_DOMAIN="${DOMAINS[0]}"
+CERT_NAME=""
+if [[ -f "$NGINX_SITE" ]]; then
+  existing_cert="$(sed -n 's|.*ssl_certificate /etc/letsencrypt/live/\([^/]*\)/fullchain\.pem;.*|\1|p' "$NGINX_SITE" | head -n 1)"
+  if [[ -n "$existing_cert" ]]; then
+    for d in "${DOMAINS[@]}"; do
+      if [[ "$d" == "$existing_cert" ]]; then
+        CERT_NAME="$existing_cert"
+        break
+      fi
+    done
+  fi
+fi
+if [[ -z "$CERT_NAME" ]]; then
+  CERT_NAME="$PRIMARY_DOMAIN"
 fi
 
 if ! command -v apt-get >/dev/null || ! grep -qE '^ID=(ubuntu|debian)$' /etc/os-release; then
@@ -371,13 +735,16 @@ systemctl enable --now docker nginx
 docker compose version >/dev/null
 
 mkdir -p "$SETUP_STATE" "$BACKUP_DIR"
-printf '%s\n' "$DOMAIN" > "$SETUP_STATE/domain"
+printf '%s\n' "$PRIMARY_DOMAIN" > "$SETUP_STATE/domain"
+printf '%s\n' "${DOMAINS[@]}" > "$SETUP_STATE/domains"
+printf '%s\n' "$EMAIL" > "$SETUP_STATE/email"
 
 tmp_env="$(mktemp)"
 if [[ -f $ENV_FILE ]]; then
-  awk '!/^(NIGHTSHIFT_PORT|NIGHTSHIFT_DOMAIN)=/' "$ENV_FILE" > "$tmp_env"
+  awk '!/^(NIGHTSHIFT_PORT|NIGHTSHIFT_DOMAIN|NIGHTSHIFT_DOMAINS|NIGHTSHIFT_EMAIL)=/' "$ENV_FILE" > "$tmp_env"
 fi
-printf 'NIGHTSHIFT_PORT=%s\nNIGHTSHIFT_DOMAIN=%s\n' "$PORT" "$DOMAIN" >> "$tmp_env"
+printf 'NIGHTSHIFT_PORT=%s\nNIGHTSHIFT_DOMAIN=%s\nNIGHTSHIFT_DOMAINS="%s"\nNIGHTSHIFT_EMAIL=%s\n' \
+  "$PORT" "$PRIMARY_DOMAIN" "${DOMAINS[*]}" "$EMAIL" >> "$tmp_env"
 install -m 600 "$tmp_env" "$ENV_FILE"
 rm -f "$tmp_env"
 
@@ -387,34 +754,46 @@ rm -f "$tmp_env"
 for active_site in /etc/nginx/sites-enabled/*; do
   [[ -e $active_site ]] || continue
   [[ $active_site == "$NGINX_LINK" ]] && continue
-  if ! awk -v host="$DOMAIN" '
-    /^[[:space:]]*#/ { next }
-    /^[[:space:]]*server_name[[:space:]]/ {
-      sub(/;.*/, "")
-      for (i = 2; i <= NF; i++) if ($i == host) found = 1
-    }
-    END { exit !found }
-  ' "$active_site"; then
-    continue
-  fi
+
+  conflicting_domains=()
+  for d in "${DOMAINS[@]}"; do
+    if awk -v host="$d" '
+      /^[[:space:]]*#/ { next }
+      /^[[:space:]]*server_name[[:space:]]/ {
+        sub(/;.*/, "")
+        for (i = 2; i <= NF; i++) if ($i == host) found = 1
+      }
+      END { exit !found }
+    ' "$active_site"; then
+      conflicting_domains+=("$d")
+    fi
+  done
+
+  [[ ${#conflicting_domains[@]} -eq 0 ]] && continue
 
   if [[ $active_site == /etc/nginx/sites-enabled/default ]]; then
     if [[ ! -L $active_site ]]; then
       echo "The default Nginx site is not a symlink; refusing to disable it automatically." >&2
       exit 1
     fi
-    if ! awk -v host="$DOMAIN" '
+    if ! awk -v hosts="${DOMAINS[*]}" '
+      BEGIN {
+        split(hosts, arr, " ")
+        for (k in arr) valid[arr[k]] = 1
+      }
       /^[[:space:]]*#/ { next }
       /^[[:space:]]*server_name[[:space:]]/ {
         sub(/;.*/, "")
-        for (i = 2; i <= NF; i++) if ($i != host && $i != "_") other = 1
+        for (i = 2; i <= NF; i++) {
+          if ($i != "_" && !($i in valid)) other = 1
+        }
       }
       END { exit other }
     ' "$active_site"; then
-      echo "The default site also contains named hosts besides $DOMAIN; refusing to disable it." >&2
+      echo "The default site also contains named hosts besides ${conflicting_domains[*]}; refusing to disable it." >&2
       exit 1
     fi
-    if ! confirm "The default Nginx site owns $DOMAIN. Back it up and disable its symlink?"; then
+    if ! confirm "The default Nginx site owns ${conflicting_domains[*]}. Back it up and disable its symlink?"; then
       echo "Resolve the conflicting virtual host, then rerun setup." >&2
       exit 1
     fi
@@ -425,7 +804,7 @@ for active_site in /etc/nginx/sites-enabled/*; do
     fi
     rm -f "$active_site"
   else
-    echo "Another enabled Nginx site ($active_site) already names $DOMAIN. Disable or edit it, then rerun setup." >&2
+    echo "Another enabled Nginx site ($active_site) already names ${conflicting_domains[*]}. Disable or edit it, then rerun setup." >&2
     exit 1
   fi
 done
@@ -461,7 +840,7 @@ write_http_site() {
 server {
     listen 80;
     listen [::]:80;
-    server_name $DOMAIN;
+    server_name ${DOMAINS[*]};
 
     location /wisp/ {
         proxy_pass http://127.0.0.1:$PORT;
@@ -490,7 +869,7 @@ write_https_site() {
 server {
     listen 80;
     listen [::]:80;
-    server_name $DOMAIN;
+    server_name ${DOMAINS[*]};
 
     location / {
         return 301 https://\$host\$request_uri;
@@ -500,10 +879,10 @@ server {
 server {
     listen 443 ssl;
     listen [::]:443 ssl;
-    server_name $DOMAIN;
+    server_name ${DOMAINS[*]};
 
-    ssl_certificate /etc/letsencrypt/live/$DOMAIN/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/$DOMAIN/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/$CERT_NAME/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/$CERT_NAME/privkey.pem;
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
@@ -533,15 +912,36 @@ ln -sfn "$NGINX_SITE" "$NGINX_LINK"
 nginx_test_with_upstream_prompt
 systemctl reload nginx
 
-if ! getent ahostsv4 "$DOMAIN" >/dev/null; then
-  echo "$DOMAIN does not currently resolve. Point its A record to this VPS, wait for DNS, and rerun setup." >&2
-  exit 1
-fi
-if [[ ! -s "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" || ! -s "/etc/letsencrypt/live/$DOMAIN/privkey.pem" ]]; then
-  certbot --nginx --non-interactive --agree-tos --email "$EMAIL" --redirect -d "$DOMAIN"
+for d in "${DOMAINS[@]}"; do
+  if ! getent ahostsv4 "$d" >/dev/null; then
+    echo "$d does not currently resolve. Point its A record to this VPS, wait for DNS, and rerun setup." >&2
+    exit 1
+  fi
+done
+
+needs_cert=false
+if [[ ! -s "/etc/letsencrypt/live/$CERT_NAME/fullchain.pem" || ! -s "/etc/letsencrypt/live/$CERT_NAME/privkey.pem" ]]; then
+  needs_cert=true
+else
+  for d in "${DOMAINS[@]}"; do
+    if ! openssl x509 -in "/etc/letsencrypt/live/$CERT_NAME/fullchain.pem" -noout -checkhost "$d" >/dev/null 2>&1; then
+      needs_cert=true
+      break
+    fi
+  done
 fi
 
-openssl x509 -in "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" -noout -checkhost "$DOMAIN" >/dev/null
+if [[ $needs_cert == true ]]; then
+  certbot_cmd=(certbot --nginx --non-interactive --agree-tos --email "$EMAIL" --redirect --cert-name "$CERT_NAME" --expand)
+  for d in "${DOMAINS[@]}"; do
+    certbot_cmd+=(-d "$d")
+  done
+  "${certbot_cmd[@]}"
+fi
+
+for d in "${DOMAINS[@]}"; do
+  openssl x509 -in "/etc/letsencrypt/live/$CERT_NAME/fullchain.pem" -noout -checkhost "$d" >/dev/null
+done
 write_https_site "$NGINX_SITE"
 
 install -d -m 755 /etc/letsencrypt/renewal-hooks/deploy
@@ -553,7 +953,7 @@ chmod 755 "$RELOAD_HOOK"
 
 nginx_test_with_upstream_prompt
 systemctl reload nginx
-certbot renew --cert-name "$DOMAIN" --quiet
+certbot renew --cert-name "$CERT_NAME" --quiet
 if systemctl list-unit-files certbot.timer --no-legend 2>/dev/null | grep -q 'certbot.timer'; then
   systemctl enable --now certbot.timer
 else
@@ -567,7 +967,14 @@ CRON
   systemctl enable --now cron
 fi
 
-echo "NightShift is installed at https://$DOMAIN"
+if [[ ${#DOMAINS[@]} -eq 1 ]]; then
+  echo "NightShift is installed at https://${DOMAINS[0]}"
+else
+  echo "NightShift is installed at:"
+  for d in "${DOMAINS[@]}"; do
+    echo "  https://$d"
+  done
+fi
 echo "Container port: 127.0.0.1:$PORT (Nginx only)"
 echo "Manage it with: sudo ./setup.sh --stop|--start|--restart|--logs|--update"
 echo "Certificate renewal scheduler: certbot.timer (or the system cron fallback)"

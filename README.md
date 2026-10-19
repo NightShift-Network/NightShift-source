@@ -26,6 +26,11 @@ The fastest way to deploy NightShift on a Debian or Ubuntu VPS with Docker, Ngin
 ```sh
 git clone https://github.com/NightShift-Network/NightShift-proxy.git
 cd NightShift-proxy
+
+# Run interactively:
+sudo ./setup.sh
+
+# Or supply domain(s) and email directly:
 sudo ./setup.sh --domain your.domain.example --email you@example.com
 ```
 ### NOTE: If the setup script fails you can simply run it again and it will likely fix the issue.
@@ -35,6 +40,13 @@ The script will:
 - Build the NightShift Docker image and start the container bound to `127.0.0.1:3005`
 - Configure Nginx with WebSocket support for `/wisp/` and HTTP-to-HTTPS redirect
 - Obtain and configure a Let's Encrypt SSL certificate and set up automatic renewal
+
+Multiple domains can be specified with repeated `--domain` flags or comma-separated:
+
+```sh
+sudo ./setup.sh --domain example.com --domain www.example.com --email you@example.com
+sudo ./setup.sh --domain "example.com, www.example.com" --email you@example.com
+```
 
 To specify a custom loopback port (default `3005`):
 
@@ -210,11 +222,21 @@ The root-level `setup.sh` installs Docker, Compose, Nginx, and Certbot when need
 - Point the hostname's A record to the VPS. Add an AAAA record only if public IPv6 works there.
 - Allow inbound TCP ports 80 and 443.
 
-Run setup with your hostname, email, and (optionally) a host port. The default is `3005`:
+Run setup interactively, or supply your hostname(s), email, and (optionally) a host port. The default port is `3005`:
 
 ```sh
+# Interactive setup (guided prompts):
+sudo ./setup.sh
+# or explicitly:
+sudo ./setup.sh --interactive
+
+# Command-line flags:
 sudo ./setup.sh --domain nightshift.example.com --email you@example.com
 sudo ./setup.sh --domain nightshift.example.com --email you@example.com --port 3010
+
+# Multiple domains (repeat --domain or comma-separate):
+sudo ./setup.sh --domain nightshift.example.com --domain proxy.example.com --email you@example.com
+sudo ./setup.sh --domain "nightshift.example.com, proxy.example.com" --email you@example.com
 ```
 
 The chosen host port is written to the ignored `.nightshift.env` file; the container listens internally on port `3000`, and Docker binds the selected port to `127.0.0.1` only. The installer does not overwrite `.env`, which may contain the FreeDNS proxy script's settings. If the hostname already has a Certbot certificate at `/etc/letsencrypt/live/<hostname>`, setup reuses it. Otherwise it requests one through Certbot's Nginx plugin. It adds a renewal deploy hook that reloads Nginx after renewal.
