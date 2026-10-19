@@ -96,7 +96,7 @@ NightShift is a self-hosted web proxy with a tabbed dark-mode interface. This re
 
 For a Debian or Ubuntu VPS with a public domain pointed at its IP address, allow inbound TCP ports 80 and 443, then run:
 
-```sh
+\`\`\`sh
 git clone https://github.com/NightShift-Network/NightShift-proxy.git
 cd NightShift-proxy
 
@@ -105,13 +105,13 @@ sudo ./setup.sh
 
 # Or supply domain(s) and email directly:
 sudo ./setup.sh --domain proxy.example.com --email you@example.com
-```
+\`\`\`
 
-Multiple domains can be specified with repeated `--domain` flags or comma-separated (e.g. `--domain "proxy.example.com, www.proxy.example.com"`).
+Multiple domains can be specified with repeated \`--domain\` flags or comma-separated (e.g. \`--domain "proxy.example.com, www.proxy.example.com"\`).
 
 The setup script installs Docker, Nginx, and Certbot as needed, starts NightShift, configures HTTPS, and enables certificate renewal. Replace the example domain and email with your own values.
 
-For management after setup, use `sudo ./setup.sh --start`, `--stop`, `--restart`, or `--logs`. To update the running installation after pulling new repository changes, run `sudo ./setup.sh --update`.
+For management after setup, use \`sudo ./setup.sh --start\`, \`--stop\`, \`--restart\`, or \`--logs\`. To update the running installation after pulling new repository changes, run \`sudo ./setup.sh --update\`.
 
 ## Run with Node.js
 
