@@ -953,6 +953,17 @@ chmod 755 "$RELOAD_HOOK"
 
 nginx_test_with_upstream_prompt
 systemctl reload nginx
+
+# Verify the public HTTPS endpoint for every configured hostname. Checking the
+# certificate file above is not enough if DNS or another TLS virtual host sends
+# clients to a different certificate.
+for d in "${DOMAINS[@]}"; do
+  if ! curl --fail --silent --show-error --max-time 20 "https://$d/" -o /dev/null; then
+    echo "Public HTTPS verification failed for $d. Check that its DNS points to this VPS and that Nginx serves its certificate for this hostname." >&2
+    exit 1
+  fi
+done
+
 certbot renew --cert-name "$CERT_NAME" --quiet
 if systemctl list-unit-files certbot.timer --no-legend 2>/dev/null | grep -q 'certbot.timer'; then
   systemctl enable --now certbot.timer
