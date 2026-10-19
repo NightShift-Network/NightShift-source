@@ -15,6 +15,7 @@ if [[ "$(git branch --show-current)" != "main" ]]; then
 fi
 
 origin_url="$(git remote get-url origin)"
+shopt -s nocasematch
 case "$origin_url" in
   https://github.com/NightShift-Network/NightShift-source.git|https://github.com/NightShift-Network/NightShift-source|git@github.com:NightShift-Network/NightShift-source.git|ssh://git@github.com/NightShift-Network/NightShift-source.git)
     ;;
