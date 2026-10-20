@@ -18,6 +18,7 @@
     "express": "^4.21.2"
   },
   "allowScripts": {
-    "node-gyp-build@4.8.4": true
+    "node-gyp-build@4.8.4": true,
+    "bufferutil@4.1.0": true
   }
 }
