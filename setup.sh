@@ -12,6 +12,7 @@ readonly RENEW_CRON="/etc/cron.d/nightshift-certbot-renew"
 
 MODE="setup"
 PLUGIN_URLS=()
+PLUGIN_ACTION=""
 DOMAINS=()
 EMAIL=""
 PORT_ARG=""
@@ -76,6 +77,7 @@ Usage:
   sudo ./setup.sh --domain HOSTNAME [HOSTNAME...] --email EMAIL [--port PORT] [--yes]
   sudo ./setup.sh --update
   sudo ./setup.sh --plugins
+  sudo ./setup.sh --plugins list
   sudo ./setup.sh --plugin-url https://github.com/example/nightshift-plugin-store.git
   sudo ./setup.sh --remove-plugin [STORE_NAME]
   sudo ./setup.sh --start|--stop|--restart|--logs
@@ -96,6 +98,7 @@ Options:
   --yes                   Accept safe replacements and skip confirmation prompts
   --update                Fast-forward pull the checkout, then rebuild and recreate the container
   --plugins               Prompt for plugin store URLs, then update installed stores
+  --plugins list|ls        List installed plugin stores and their Git origins
   --plugin-url URL        Add a plugin store Git URL and install it (repeatable)
   --remove-plugin [NAME]  Remove one installed plugin store (prompts when NAME is omitted)
   --start                 Start the container
@@ -132,7 +135,14 @@ while (($#)); do
     --port) [[ $# -ge 2 ]] || { echo "--port needs a value" >&2; exit 2; }; PORT_ARG="$2"; shift 2 ;;
     --yes) YES="yes"; shift ;;
     --update) MODE="update"; shift ;;
-    --plugins) MODE="plugins"; shift ;;
+    --plugins)
+      MODE="plugins"
+      shift
+      if (($#)) && [[ $1 == list || $1 == ls ]]; then
+        PLUGIN_ACTION="list"
+        shift
+      fi
+      ;;
     --plugin-url|--pluin-url)
       [[ $# -ge 2 && -n $2 ]] || { echo "--plugin-url needs a Git URL" >&2; exit 2; }
       PLUGIN_URLS+=("$2")
@@ -668,6 +678,20 @@ update_plugin_stores() {
     git -C "$target" pull --ff-only
   done
 }
+list_plugin_stores() {
+  if [[ ! -d $plugin_directory ]]; then
+    echo "No plugin stores are installed."
+    return 0
+  fi
+  local target origin found=no
+  for target in "$plugin_directory"/*; do
+    [[ -d $target && ( -d "$target/.git" || -f "$target/.git" ) ]] || continue
+    origin="$(git -C "$target" remote get-url origin 2>/dev/null || printf 'origin unavailable')"
+    printf '%s\t%s\n' "${target##*/}" "$origin"
+    found=yes
+  done
+  if [[ $found == no ]]; then echo "No plugin stores are installed."; fi
+}
 
 case "$MODE" in
   update)
@@ -697,6 +721,10 @@ case "$MODE" in
     exit 0
     ;;
   plugins)
+    if [[ $PLUGIN_ACTION == list ]]; then
+      list_plugin_stores
+      exit 0
+    fi
     command -v git >/dev/null || { echo "Git is not installed; cannot install plugin stores." >&2; exit 1; }
     if ((${#PLUGIN_URLS[@]} == 0)) && [[ -r /dev/tty ]]; then
       echo "Enter trusted plugin store Git URLs. Submit an empty line when finished."

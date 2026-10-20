@@ -62,6 +62,7 @@ sudo ./setup.sh --domain your.domain.example --email you@example.com --port 3010
 ```sh
 sudo ./setup.sh --update      # Pull latest changes and rebuild/restart container
 sudo ./setup.sh --plugins     # Prompt for stores and update installed stores
+sudo ./setup.sh --plugins list # List installed stores and Git origins (--plugins ls also works)
 sudo ./setup.sh --plugin-url https://github.com/example/plugin-store.git
 sudo ./setup.sh --start       # Start the container
 sudo ./setup.sh --stop        # Stop the container
@@ -71,7 +72,7 @@ sudo ./setup.sh --logs        # View live container logs
 
 ### Plugins
 
-Plugin stores are trusted Git repositories installed under the `plugins/` directory next to the NightShift checkout. Run `setup.sh --plugins` to enter one or more Git URLs interactively, or pass `--plugin-url URL` (repeatable) for non-interactive setup. The spelling `--pluin-url` is also accepted. `--plugins` and `--update` fast-forward every installed store; locally changed stores are left untouched and cause the command to stop with an error. The container mounts that directory read-only.
+Plugin stores are trusted Git repositories installed under the `plugins/` directory next to the NightShift checkout. Run `setup.sh --plugins` to enter one or more Git URLs interactively, or pass `--plugin-url URL` (repeatable) for non-interactive setup. The spelling `--pluin-url` is also accepted. Run `setup.sh --plugins list` or `setup.sh --plugins ls` to list installed store names and Git origins. `--plugins` and `--update` fast-forward every installed store; locally changed stores are left untouched and cause the command to stop with an error. The container mounts that directory read-only.
 
 The loader finds a plugin manifest at the store root or one directory below it. A store can therefore provide multiple plugins, each with its own `plugin.json` and assets. Example manifest:
 

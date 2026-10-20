@@ -12,7 +12,7 @@ NightShift is a Node.js/Express proxy. `server.js` serves the app, a styled 404 
 - `npm run publish:proxy` builds and pushes the distribution to `NightShift-Network/NightShift-proxy`.
 - `./publish.sh` checks the local publish prerequisites, installs dependencies, and runs the full proxy publish.
 - PM2 deployments should restart the named process after server changes: `pm2 restart nightshift`.
-- VPS deployments use `setup.sh --plugins` for interactive trusted Git store installation or `setup.sh --plugin-url URL` for non-interactive installation; `setup.sh --update` fast-forwards every installed store along with the source checkout. Store repositories are mounted read-only from the sibling `plugins/` directory.
+- VPS deployments use `setup.sh --plugins` for interactive trusted Git store installation or `setup.sh --plugin-url URL` for non-interactive installation; `setup.sh --plugins list` (alias `ls`) lists installed store names and Git origins. `setup.sh --update` fast-forwards every installed store along with the source checkout. `setup.sh --remove-plugin [STORE_NAME]` removes a selected store checkout after confirmation, or shows an interactive picker when no name is supplied. Store repositories are mounted read-only from the sibling `plugins/` directory.
 
 No lint or automated test scripts are configured. `publish.sh` installs the frontend transformation tools before publishing.
 
