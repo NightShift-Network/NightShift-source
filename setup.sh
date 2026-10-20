@@ -90,7 +90,7 @@ Options:
   --email EMAIL           Contact email for a new Let's Encrypt certificate
   --port PORT             Loopback host port for NightShift (default 3005)
   --yes                   Accept safe replacements and skip confirmation prompts
-  --update                Rebuild the image and recreate the running container
+  --update                Fast-forward pull the checkout, then rebuild and recreate the container
   --start                 Start the container
   --stop                  Stop the container
   --restart               Restart the container
@@ -602,6 +602,25 @@ COMPOSE=(docker compose --project-name nightshift --env-file "$ENV_FILE" -f "$SC
 case "$MODE" in
   update)
     command -v docker >/dev/null || { echo "Docker is not installed; run setup first." >&2; exit 1; }
+    command -v git >/dev/null || { echo "Git is not installed; cannot update the checkout." >&2; exit 1; }
+    git_cmd=(git -c "safe.directory=$SCRIPT_DIR" -C "$SCRIPT_DIR")
+    if [[ -n ${SUDO_USER:-} && $SUDO_USER != root && $(stat -c '%U' "$SCRIPT_DIR") == "$SUDO_USER" ]] && command -v runuser >/dev/null 2>&1; then
+      git_cmd=(runuser -u "$SUDO_USER" -- git -C "$SCRIPT_DIR")
+    fi
+    if ! "${git_cmd[@]}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+      echo "The NightShift checkout has no Git metadata. Clone the repository before using --update." >&2
+      exit 1
+    fi
+    if [[ -n $("${git_cmd[@]}" status --porcelain) ]]; then
+      echo "The NightShift checkout has local changes. Commit or remove them before using --update." >&2
+      exit 1
+    fi
+    if ! "${git_cmd[@]}" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' >/dev/null 2>&1; then
+      echo "The current Git branch has no upstream configured. Set its upstream before using --update." >&2
+      exit 1
+    fi
+    echo "Pulling the latest fast-forward update for $("${git_cmd[@]}" branch --show-current)..."
+    "${git_cmd[@]}" pull --ff-only
     [[ -f $ENV_FILE ]] || { printf 'NIGHTSHIFT_PORT=%s\n' "$PORT" > "$ENV_FILE"; chmod 600 "$ENV_FILE"; }
     "${COMPOSE[@]}" up -d --build
     exit 0

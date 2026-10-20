@@ -256,12 +256,13 @@ sudo ./setup.sh --restart
 sudo ./setup.sh --logs
 ```
 
-To update code, pull it in the checkout and rebuild/recreate the container:
+Update the checkout and rebuild/recreate the container in one step:
 
 ```sh
-git pull
 sudo ./setup.sh --update
 ```
+
+`--update` requires a Git clone with a configured upstream and a clean working tree. It pulls with `--ff-only`, so it stops safely if local changes or divergent commits need attention, then rebuilds the image and recreates the container.
 
 The Compose service uses Docker's `unless-stopped` restart policy, and setup enables the Docker daemon at boot. The container returns after a VPS reboot unless you explicitly stopped it. Docker documents the [restart policy](https://docs.docker.com/reference/compose-file/services/#restart) and [port binding](https://docs.docker.com/reference/compose-file/services/#ports). The same operations are available through `docker compose --project-name nightshift --env-file .nightshift.env -f compose.yaml` (`stop`, `start`, `restart`, `logs -f`, and `up -d --build`).
 
