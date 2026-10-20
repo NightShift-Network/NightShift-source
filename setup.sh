@@ -11,9 +11,7 @@ readonly RELOAD_HOOK="/etc/letsencrypt/renewal-hooks/deploy/50-nightshift-nginx-
 readonly RENEW_CRON="/etc/cron.d/nightshift-certbot-renew"
 
 MODE="setup"
-# Add trusted plugin store Git URLs here. Each repository is cloned into the
-# sibling plugins directory and may contain one plugin.json at its root.
-PLUGIN_STORE_URLS=()
+PLUGIN_URLS=()
 DOMAINS=()
 EMAIL=""
 PORT_ARG=""
@@ -78,6 +76,7 @@ Usage:
   sudo ./setup.sh --domain HOSTNAME [HOSTNAME...] --email EMAIL [--port PORT] [--yes]
   sudo ./setup.sh --update
   sudo ./setup.sh --plugins
+  sudo ./setup.sh --plugin-url https://github.com/example/nightshift-plugin-store.git
   sudo ./setup.sh --start|--stop|--restart|--logs
   sudo ./setup.sh --remove [--delete-certificate]
   sudo ./setup.sh --remove-nginx [--delete-certificate]
@@ -95,7 +94,8 @@ Options:
   --port PORT             Loopback host port for NightShift (default 3005)
   --yes                   Accept safe replacements and skip confirmation prompts
   --update                Fast-forward pull the checkout, then rebuild and recreate the container
-  --plugins               Install or update configured plugin stores
+  --plugins               Prompt for plugin store URLs, then update installed stores
+  --plugin-url URL        Add a plugin store Git URL and install it (repeatable)
   --start                 Start the container
   --stop                  Stop the container
   --restart               Restart the container
@@ -131,6 +131,12 @@ while (($#)); do
     --yes) YES="yes"; shift ;;
     --update) MODE="update"; shift ;;
     --plugins) MODE="plugins"; shift ;;
+    --plugin-url|--pluin-url)
+      [[ $# -ge 2 && -n $2 ]] || { echo "--plugin-url needs a Git URL" >&2; exit 2; }
+      PLUGIN_URLS+=("$2")
+      MODE="plugins"
+      shift 2
+      ;;
     --start) MODE="start"; shift ;;
     --stop) MODE="stop"; shift ;;
     --restart) MODE="restart"; shift ;;
@@ -608,33 +614,44 @@ COMPOSE=(docker compose --project-name nightshift --env-file "$ENV_FILE" -f "$SC
 plugin_directory="$SCRIPT_DIR/../plugins"
 plugin_store_name() {
   local url="${1%/}"
+  if [[ $url == *:* && $url != *://* ]]; then url="${url##*:}"; fi
   url="${url##*/}"
   printf '%s' "${url%.git}" | tr -cd '[:alnum:]_.-'
+}
+install_plugin_store() {
+  local url="$1" name target current_url
+  if [[ ! $url =~ ^(https://|ssh://|git@)[^[:space:]]+$ ]]; then
+    echo "Plugin store URL must use HTTPS, SSH, or git@host syntax: $url" >&2
+    return 1
+  fi
+  name="$(plugin_store_name "$url")"
+  [[ -n $name && $name != . && $name != .. ]] || { echo "Could not derive a plugin store name from $url" >&2; return 1; }
+  target="$plugin_directory/$name"
+  if [[ -d "$target/.git" || -f "$target/.git" ]]; then
+    current_url="$(git -C "$target" remote get-url origin 2>/dev/null || true)"
+    if [[ $current_url != "$url" ]]; then
+      echo "A different plugin store already uses $target (origin: ${current_url:-missing})." >&2
+      return 1
+    fi
+  elif [[ -e $target ]]; then
+    echo "Plugin store path exists but is not a Git checkout: $target" >&2
+    return 1
+  else
+    git clone -- "$url" "$target"
+  fi
 }
 update_plugin_stores() {
   command -v git >/dev/null || { echo "Git is not installed; cannot update plugin stores." >&2; return 1; }
   mkdir -p "$plugin_directory"
-  if ((${#PLUGIN_STORE_URLS[@]} == 0)); then
-    echo "No plugin stores are configured. Add trusted Git URLs to PLUGIN_STORE_URLS in setup.sh."
-    return 0
-  fi
-  local url name target
-  for url in "${PLUGIN_STORE_URLS[@]}"; do
-    name="$(plugin_store_name "$url")"
-    [[ -n $name ]] || { echo "Could not derive a plugin store name from $url" >&2; return 1; }
-    target="$plugin_directory/$name"
-    if [[ -d "$target/.git" ]]; then
-      if [[ -n $(git -C "$target" status --porcelain) ]]; then
-        echo "Plugin store has local changes; refusing to update: $target" >&2
-        return 1
-      fi
-      git -C "$target" pull --ff-only
-    elif [[ -e $target ]]; then
-      echo "Plugin store path exists but is not a Git checkout: $target" >&2
+  local target
+  for target in "$plugin_directory"/*; do
+    [[ -d $target ]] || continue
+    [[ -d "$target/.git" || -f "$target/.git" ]] || continue
+    if [[ -n $(git -C "$target" status --porcelain) ]]; then
+      echo "Plugin store has local changes; refusing to update: $target" >&2
       return 1
-    else
-      git clone -- "$url" "$target"
     fi
+    git -C "$target" pull --ff-only
   done
 }
 
@@ -666,6 +683,17 @@ case "$MODE" in
     exit 0
     ;;
   plugins)
+    command -v git >/dev/null || { echo "Git is not installed; cannot install plugin stores." >&2; exit 1; }
+    if ((${#PLUGIN_URLS[@]} == 0)) && [[ -r /dev/tty ]]; then
+      echo "Enter trusted plugin store Git URLs. Submit an empty line when finished."
+      while true; do
+        read -r -p "Plugin store URL: " plugin_url </dev/tty || break
+        [[ -n $plugin_url ]] || break
+        PLUGIN_URLS+=("$plugin_url")
+      done
+    fi
+    mkdir -p "$plugin_directory"
+    for plugin_url in "${PLUGIN_URLS[@]}"; do install_plugin_store "$plugin_url"; done
     update_plugin_stores
     echo "Plugin stores are available in $plugin_directory. Reload NightShift in your browser to discover updated plugins."
     exit 0

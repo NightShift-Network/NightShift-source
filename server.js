@@ -25,23 +25,31 @@ app.get("/api/plugins", async (req, res) => {
     const stores = await fs.readdir(pluginsPath, { withFileTypes: true });
     const plugins = [];
     for (const store of stores.filter(entry => entry.isDirectory())) {
-      const directory = path.join(pluginsPath, store.name);
+      const pluginDirectories = [""];
       try {
-        const manifest = JSON.parse(await fs.readFile(path.join(directory, "plugin.json"), "utf8"));
-        if (!/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(manifest.id || "") || typeof manifest.name !== "string") continue;
-        const assetUrl = file => {
-          if (typeof file !== "string" || !/^[A-Za-z0-9._/-]+$/.test(file) || file.startsWith("/") || file.split("/").some(part => !part || part === "." || part === "..")) return null;
-          return `/plugins/${encodeURIComponent(store.name)}/${file.split("/").map(encodeURIComponent).join("/")}`;
-        };
-        plugins.push({
-          id: manifest.id,
-          name: manifest.name.slice(0, 100),
-          description: typeof manifest.description === "string" ? manifest.description.slice(0, 300) : "",
-          version: typeof manifest.version === "string" ? manifest.version.slice(0, 40) : "",
-          script: assetUrl(manifest.script),
-          styles: Array.isArray(manifest.styles) ? manifest.styles.map(assetUrl).filter(Boolean) : [],
-        });
+        const children = await fs.readdir(path.join(pluginsPath, store.name), { withFileTypes: true });
+        pluginDirectories.push(...children.filter(entry => entry.isDirectory() && !entry.name.startsWith(".")).map(entry => entry.name));
       } catch {}
+      for (const relativeDirectory of pluginDirectories) {
+        try {
+          const directory = path.join(pluginsPath, store.name, relativeDirectory);
+          const manifest = JSON.parse(await fs.readFile(path.join(directory, "plugin.json"), "utf8"));
+          if (!/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(manifest.id || "") || typeof manifest.name !== "string") continue;
+          const basePath = [store.name, relativeDirectory].filter(Boolean);
+          const assetUrl = file => {
+            if (typeof file !== "string" || !/^[A-Za-z0-9._/-]+$/.test(file) || file.startsWith("/") || file.split("/").some(part => !part || part === "." || part === "..")) return null;
+            return `/plugins/${[...basePath, ...file.split("/")].map(encodeURIComponent).join("/")}`;
+          };
+          plugins.push({
+            id: manifest.id,
+            name: manifest.name.slice(0, 100),
+            description: typeof manifest.description === "string" ? manifest.description.slice(0, 300) : "",
+            version: typeof manifest.version === "string" ? manifest.version.slice(0, 40) : "",
+            script: assetUrl(manifest.script),
+            styles: Array.isArray(manifest.styles) ? manifest.styles.map(assetUrl).filter(Boolean) : [],
+          });
+        } catch {}
+      }
     }
     res.setHeader("Cache-Control", "no-store");
     res.json(plugins);
