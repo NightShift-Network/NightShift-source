@@ -798,8 +798,8 @@
     } else if (page === "shortcuts") {
       [
         ["Focus address bar", "Ctrl / ⌘ + L", ""],
-        ["Open a new tab", "Ctrl / ⌘ + T", ""],
-        ["Close the current tab", "Ctrl / ⌘ + W", ""],
+        ["Open a new tab", "Ctrl / ⌘ + Shift + T", ""],
+        ["Close the current tab", "Ctrl / ⌘ + W; Ctrl + Alt + W", ""],
         ["Bookmark or remove this page", "Ctrl / ⌘ + D", ""],
         ["Open Settings", "Ctrl / ⌘ + ,", INTERNAL_SETTINGS],
         ["Open quick switcher", "Ctrl / ⌘ + K", ""],
@@ -1626,8 +1626,8 @@
     const key = event.key.toLowerCase();
     if (modifier && key === "k") { event.preventDefault(); openQuickSwitcher(); }
     if (modifier && key === "l") { event.preventDefault(); address.focus(); address.select(); }
-    if (modifier && key === "t") { event.preventDefault(); createTab(); }
-    if (modifier && key === "w") { event.preventDefault(); if (tabs.length > 1) closeTab(activeId); else navigate(INTERNAL_NEW_TAB); }
+    if (modifier && event.shiftKey && key === "t") { event.preventDefault(); createTab(); }
+    if (modifier && !event.shiftKey && key === "w") { event.preventDefault(); if (tabs.length > 1) closeTab(activeId); else navigate(INTERNAL_NEW_TAB); }
     if (modifier && key === "d") { event.preventDefault(); bookmarkButton.click(); }
     if (modifier && key === ",") { event.preventDefault(); navigate(INTERNAL_SETTINGS); }
     if (modifier && key === "h") { event.preventDefault(); navigate("nightshift://history"); }
