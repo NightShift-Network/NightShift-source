@@ -250,11 +250,14 @@
           if (browserFallback && !sdkLoadedThroughBrowser) {
             if (!fallbackFrame) await enableBrowserFallback();
             if (!fallbackFrame?.prefix) throw new Error("The NightShift browser frame could not be initialized");
-            window.Lumin = undefined;
+            delete window.Lumin;
             await loadScript(`${fallbackFrame.prefix}${window.$scramjetController.config.codec.encode("https://cdn.jsdelivr.net/gh/luminsdk/script@latest/lumin.min.js")}`);
+            if (!window.Lumin) throw new Error("LuminSDK did not expose its API after loading through the NightShift browser.");
             sdkLoadedThroughBrowser = true;
           }
-          if (!window.Lumin) throw new Error("The LuminSDK script could not be loaded from jsDelivr.");
+          if (!window.Lumin) throw new Error(browserFallback
+            ? "LuminSDK did not expose its API after loading through the NightShift browser."
+            : "The LuminSDK script could not be loaded from jsDelivr.");
           let initError = null;
           await window.Lumin.init({
             headless: true,
