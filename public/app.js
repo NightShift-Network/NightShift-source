@@ -12,6 +12,13 @@
   const heroAddress = document.querySelector("#hero-address");
   const toast = document.querySelector("#toast");
   const bookmarkButton = document.querySelector("#bookmark");
+  const quickSwitcher = document.querySelector("#quick-switcher");
+  const quickSwitcherInput = document.querySelector("#quick-switcher-input");
+  const quickSwitcherResults = document.querySelector("#quick-switcher-results");
+  let quickSwitcherItems = [];
+  let quickSwitcherMatches = [];
+  let quickSwitcherIndex = 0;
+  let quickSwitcherPreviousFocus = null;
   const browserShell = document.querySelector(".browser");
   const fullscreenButton = document.querySelector("#enter-fullscreen");
   const fullscreenExitButton = document.querySelector("#exit-fullscreen");
@@ -530,6 +537,133 @@
     renderShortcuts();
   }
 
+  function getQuickSwitcherItems() {
+    const items = [];
+    tabs.forEach(tab => items.push({
+      kind: "Tab",
+      title: tab.title || "New tab",
+      detail: tab.url || "NightShift new tab",
+      url: tab.url || INTERNAL_NEW_TAB,
+      tabId: tab.id,
+      active: tab.id === activeId,
+    }));
+    bookmarks.forEach(item => items.push({
+      kind: "Bookmark",
+      title: item.title || hostnameOf(item.url) || item.url,
+      detail: item.url,
+      url: item.url,
+    }));
+    browsingHistory.forEach(item => items.push({
+      kind: "History",
+      title: item.title || hostnameOf(item.url) || item.url,
+      detail: item.url,
+      url: item.url,
+    }));
+    const internalTitles = {
+      [INTERNAL_NEW_TAB]: "New tab",
+      [INTERNAL_SETTINGS]: "Settings",
+      ...Object.fromEntries(INTERNAL_PAGES.map(page => [`nightshift://${page}`, page[0].toUpperCase() + page.slice(1)])),
+    };
+    INTERNAL_URLS.forEach(url => items.push({
+      kind: "NightShift",
+      title: internalTitles[url],
+      detail: url,
+      url,
+    }));
+    return items;
+  }
+
+  function renderQuickSwitcherResults() {
+    const query = quickSwitcherInput.value.trim().toLowerCase();
+    const terms = query.split(/\s+/).filter(Boolean);
+    const matches = quickSwitcherItems
+      .map((item, order) => {
+        const title = item.title.toLowerCase();
+        const detail = item.detail.toLowerCase();
+        const haystack = `${item.kind.toLowerCase()} ${title} ${detail}`;
+        if (terms.some(term => !haystack.includes(term))) return null;
+        const score = (item.active ? 20 : 0)
+          + (title === query && query ? 100 : 0)
+          + (query && title.startsWith(query) ? 50 : 0)
+          + terms.reduce((total, term) => total + (title.includes(term) ? 10 : 0) + (detail.includes(term) ? 2 : 0), 0);
+        return { item, order, score };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.score - a.score || a.order - b.order)
+      .slice(0, 30);
+
+    quickSwitcherMatches = matches.map(({ item }) => item);
+    quickSwitcherResults.replaceChildren();
+    if (!matches.length) {
+      const empty = document.createElement("p");
+      empty.className = "quick-switcher-empty";
+      empty.textContent = "No matching tabs, bookmarks, history, or pages.";
+      quickSwitcherResults.append(empty);
+      quickSwitcherInput.removeAttribute("aria-activedescendant");
+      quickSwitcherIndex = 0;
+      return;
+    }
+
+    quickSwitcherIndex = Math.min(quickSwitcherIndex, matches.length - 1);
+    matches.forEach(({ item }, index) => {
+      const option = document.createElement("button");
+      option.id = `quick-switcher-option-${index}`;
+      option.type = "button";
+      option.className = `quick-switcher-option${index === quickSwitcherIndex ? " selected" : ""}`;
+      option.setAttribute("role", "option");
+      option.setAttribute("aria-selected", String(index === quickSwitcherIndex));
+      const copy = document.createElement("span");
+      copy.className = "quick-switcher-option-copy";
+      const title = document.createElement("strong");
+      title.textContent = item.title;
+      const detail = document.createElement("small");
+      detail.textContent = item.detail;
+      copy.append(title, detail);
+      const kind = document.createElement("span");
+      kind.className = "quick-switcher-kind";
+      kind.textContent = item.kind;
+      option.append(copy, kind);
+      option.addEventListener("click", () => selectQuickSwitcherItem(item));
+      quickSwitcherResults.append(option);
+    });
+    quickSwitcherInput.setAttribute("aria-activedescendant", `quick-switcher-option-${quickSwitcherIndex}`);
+    quickSwitcherResults.querySelector(`#quick-switcher-option-${quickSwitcherIndex}`)?.scrollIntoView({ block: "nearest" });
+  }
+
+  function openQuickSwitcher() {
+    quickSwitcherItems = getQuickSwitcherItems();
+    quickSwitcherIndex = 0;
+    quickSwitcherPreviousFocus = document.activeElement;
+    quickSwitcher.hidden = false;
+    quickSwitcherInput.setAttribute("aria-expanded", "true");
+    quickSwitcherInput.value = "";
+    renderQuickSwitcherResults();
+    quickSwitcherInput.focus();
+  }
+
+  function closeQuickSwitcher(restoreFocus = true) {
+    quickSwitcher.hidden = true;
+    quickSwitcherInput.setAttribute("aria-expanded", "false");
+    quickSwitcherInput.removeAttribute("aria-activedescendant");
+    quickSwitcherInput.blur();
+    if (restoreFocus && quickSwitcherPreviousFocus instanceof HTMLElement) quickSwitcherPreviousFocus.focus();
+    quickSwitcherPreviousFocus = null;
+  }
+
+  function selectQuickSwitcherItem(item) {
+    closeQuickSwitcher(false);
+    if (item.tabId) activate(item.tabId);
+    else navigate(item.url);
+  }
+
+  quickSwitcherInput.addEventListener("input", () => {
+    quickSwitcherIndex = 0;
+    renderQuickSwitcherResults();
+  });
+  quickSwitcher.addEventListener("click", event => {
+    if (event.target === quickSwitcher) closeQuickSwitcher();
+  });
+
   function renderInternalPage(page) {
     const headings = {
       history: ["History", "Search pages you’ve opened in this browser."],
@@ -668,6 +802,7 @@
         ["Close the current tab", "Ctrl / ⌘ + W", ""],
         ["Bookmark or remove this page", "Ctrl / ⌘ + D", ""],
         ["Open Settings", "Ctrl / ⌘ + ,", INTERNAL_SETTINGS],
+        ["Open quick switcher", "Ctrl / ⌘ + K", ""],
         ["Open History", "Ctrl / ⌘ + H", "nightshift://history"],
         ["Open Bookmarks", "Ctrl / ⌘ + Shift + B", "nightshift://bookmarks"],
         ["Switch to next / previous tab", "Ctrl / ⌘ + Tab; Ctrl / ⌘ + Shift + Tab", ""],
@@ -1459,6 +1594,28 @@
     }
   });
   function handleKeyboardShortcuts(event) {
+    if (!quickSwitcher.hidden) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeQuickSwitcher();
+        return;
+      }
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        if (quickSwitcherMatches.length) {
+          const direction = event.key === "ArrowDown" ? 1 : -1;
+          quickSwitcherIndex = (quickSwitcherIndex + direction + quickSwitcherMatches.length) % quickSwitcherMatches.length;
+          renderQuickSwitcherResults();
+        }
+        return;
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        const selected = quickSwitcherMatches[quickSwitcherIndex];
+        if (selected) selectQuickSwitcherItem(selected);
+        return;
+      }
+    }
     if (fullscreenMode && event.key === "Escape") {
       event.preventDefault();
       exitFullscreenMode();
@@ -1467,6 +1624,7 @@
     if (event.key === "Escape" && !settingsDialog.hidden) navigate(INTERNAL_NEW_TAB);
     const modifier = event.ctrlKey || event.metaKey;
     const key = event.key.toLowerCase();
+    if (modifier && key === "k") { event.preventDefault(); openQuickSwitcher(); }
     if (modifier && key === "l") { event.preventDefault(); address.focus(); address.select(); }
     if (modifier && key === "t") { event.preventDefault(); createTab(); }
     if (modifier && key === "w") { event.preventDefault(); if (tabs.length > 1) closeTab(activeId); else navigate(INTERNAL_NEW_TAB); }
