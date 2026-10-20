@@ -127,6 +127,7 @@
     let searchTimer;
     let imageUrls = [];
     let browserFallback = false;
+    let sdkLoadedThroughBrowser = false;
     let browserControllerPromise = null;
     let fallbackFrame = null;
     let nativeFetch = window.fetch.bind(window);
@@ -246,9 +247,12 @@
       status.textContent = "Connecting to interactive entertainment…";
       initPromise = (async () => {
         try {
-          if (!window.Lumin && browserFallback) {
+          if (browserFallback && !sdkLoadedThroughBrowser) {
             if (!fallbackFrame) await enableBrowserFallback();
-            if (fallbackFrame?.prefix) await loadScript(`${fallbackFrame.prefix}${window.$scramjetController.config.codec.encode("https://cdn.jsdelivr.net/gh/luminsdk/script@latest/lumin.min.js")}`);
+            if (!fallbackFrame?.prefix) throw new Error("The NightShift browser frame could not be initialized");
+            window.Lumin = undefined;
+            await loadScript(`${fallbackFrame.prefix}${window.$scramjetController.config.codec.encode("https://cdn.jsdelivr.net/gh/luminsdk/script@latest/lumin.min.js")}`);
+            sdkLoadedThroughBrowser = true;
           }
           if (!window.Lumin) throw new Error("The LuminSDK script could not be loaded from jsDelivr.");
           let initError = null;
@@ -440,11 +444,8 @@
       try {
         await enableBrowserFallback();
         browserRetry.hidden = true;
-        if (sdkReady) loadPage(currentPage);
-        else {
-          initPromise = null;
-          initialize(true);
-        }
+        initPromise = null;
+        await initialize(true);
       } catch (error) {
         reportError(error);
       } finally {
