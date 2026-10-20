@@ -37,6 +37,13 @@ label[for="cloak-title"]{margin-top:16px}
 .internal-row-copy strong{color:#e1e5dd;font-size:12px;font-weight:600}
 .internal-row-copy small{overflow-wrap:anywhere;color:#81887e;font:10px var(--mono)}
 .internal-row .settings-add{flex:none;margin:0}
+.plugin-toggle{position:relative;display:inline-flex;flex:none;align-items:center;cursor:pointer}
+.plugin-toggle input{position:absolute;width:1px;height:1px;opacity:0}
+.plugin-toggle span{width:38px;height:22px;border:1px solid #41483c;border-radius:99px;background:#242824;transition:background .18s,border-color .18s}
+.plugin-toggle span:after{content:"";display:block;width:14px;height:14px;margin:3px;border-radius:50%;background:#82897e;transition:transform .18s,background .18s}
+.plugin-toggle input:checked+span{border-color:#81976a;background:#35422c}
+.plugin-toggle input:checked+span:after{transform:translateX(16px);background:var(--lime)}
+.plugin-toggle input:focus-visible+span{outline:2px solid var(--lime);outline-offset:3px}
 .internal-note{margin:4px 0}
 .history-search{width:100%;height:40px;padding:0 12px;border:1px solid #353a33;border-radius:8px;outline:0;background:#111411;color:var(--text);font:12px var(--font)}
 .history-search:focus{border-color:#70845c}

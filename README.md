@@ -61,11 +61,31 @@ sudo ./setup.sh --domain your.domain.example --email you@example.com --port 3010
 
 ```sh
 sudo ./setup.sh --update      # Pull latest changes and rebuild/restart container
+sudo ./setup.sh --plugins     # Install or update configured plugin stores
 sudo ./setup.sh --start       # Start the container
 sudo ./setup.sh --stop        # Stop the container
 sudo ./setup.sh --restart     # Restart the container
 sudo ./setup.sh --logs        # View live container logs
 ```
+
+### Plugins
+
+Plugin stores are trusted Git repositories listed in `PLUGIN_STORE_URLS` near the top of `setup.sh`. `--plugins` clones or fast-forward updates those repositories under the `plugins/` directory next to the NightShift checkout. `--update` refreshes the same stores along with NightShift. The container mounts that directory read-only.
+
+Each store currently provides one plugin from its root, described by `plugin.json`:
+
+```json
+{
+  "id": "example-plugin",
+  "name": "Example plugin",
+  "description": "A short description",
+  "version": "1.0.0",
+  "script": "plugin.js",
+  "styles": ["plugin.css"]
+}
+```
+
+The script and styles are optional. Plugins are enabled by default and can be disabled at `nightshift://plugins`; the selection is stored in the visitor's local browser storage. Plugin scripts run in the NightShift page with its browser permissions, so only use stores you trust. No plugin stores are configured by default yet.
 
 ### Removal and Cleanup
 
@@ -86,7 +106,7 @@ sudo ./setup.sh --delete-certificate
 ## Features
 
 - Full-screen sidebar navigation for Browser, Play, and quick cloaking access
-- Multi-tab browsing with `nightshift://` pages for New Tab, Settings, History, Bookmarks, Shortcuts, Diagnostics, About, Privacy, and Help
+- Multi-tab browsing with `nightshift://` pages for New Tab, Settings, History, Bookmarks, Plugins, Shortcuts, Diagnostics, About, Privacy, and Help
 - Quick switcher (`Ctrl+K` / `⌘K`) for open tabs, bookmarks, browsing history, and internal pages
 - Keyboard shortcuts including `Ctrl+Shift+T` to open a tab and `Ctrl+W` or `Ctrl+Alt+W` to close one
 - Full-screen browsing with a compact address bar and Escape exit

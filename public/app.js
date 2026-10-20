@@ -30,10 +30,11 @@
   const INTERNAL_NEW_TAB = "nightshift://newtab";
   const INTERNAL_SETTINGS = "nightshift://settings";
   const internalPage = document.querySelector("#internal-page");
-  const INTERNAL_PAGES = ["history", "bookmarks", "about", "privacy", "diagnostics", "shortcuts", "help"];
+  const INTERNAL_PAGES = ["history", "bookmarks", "about", "privacy", "diagnostics", "shortcuts", "plugins", "help"];
   const INTERNAL_URLS = [INTERNAL_NEW_TAB, INTERNAL_SETTINGS, ...INTERNAL_PAGES.map(page => `nightshift://${page}`)];
   const HISTORY_KEY = "nightshift-browsing-history";
   const MAX_HISTORY_ENTRIES = 500;
+  const PLUGIN_PREFERENCES_KEY = "nightshift-plugin-preferences";
   const searchEngineSelect = document.querySelector("#search-engine");
   const browserTransportSelect = document.querySelector("#browser-transport");
   const syncXhrCheckbox = document.querySelector("#sync-xhr");
@@ -126,6 +127,45 @@
       }
     } catch {}
     return { engine: "duckduckgo", endpoint: "" };
+  }
+
+  function loadPluginPreferences() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(PLUGIN_PREFERENCES_KEY) || "{}");
+      return saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {};
+    } catch { return {}; }
+  }
+
+  function savePluginPreferences(preferences) {
+    try { localStorage.setItem(PLUGIN_PREFERENCES_KEY, JSON.stringify(preferences)); } catch {}
+  }
+
+  async function loadEnabledPlugins() {
+    try {
+      const response = await fetch("/api/plugins", { cache: "no-store" });
+      if (!response.ok) return;
+      const plugins = await response.json();
+      if (!Array.isArray(plugins)) return;
+      const preferences = loadPluginPreferences();
+      plugins.filter(plugin => preferences[plugin.id] !== false).forEach(plugin => {
+        (plugin.styles || []).forEach(href => {
+          const link = document.createElement("link");
+          link.rel = "stylesheet";
+          link.href = href;
+          link.dataset.nightshiftPlugin = plugin.id;
+          document.head.append(link);
+        });
+        if (plugin.script) {
+          const script = document.createElement("script");
+          script.src = plugin.script;
+          script.defer = true;
+          script.dataset.nightshiftPlugin = plugin.id;
+          document.head.append(script);
+        }
+      });
+    } catch (error) {
+      recordDiagnostic(`Plugin loading failed: ${error.message || error}`);
+    }
   }
 
   const TRANSPORT_KEY = "nightshift-browser-transport";
@@ -672,6 +712,7 @@
       privacy: ["Privacy", "How NightShift handles browser data and connections."],
       diagnostics: ["Diagnostics", "Connection details and recent browser errors."],
       shortcuts: ["Keyboard shortcuts", "Quick ways to move around NightShift."],
+      plugins: ["Plugins", "Manage plugins installed by this NightShift server."],
       help: ["Help", "Quick links and guidance for using NightShift."],
     };
     const [title, description] = headings[page] || headings.help;
@@ -772,6 +813,43 @@
         remove.addEventListener("click", () => { bookmarks.splice(index, 1); saveBookmarks(); render(); });
         row.append(remove);
       });
+    } else if (page === "plugins") {
+      addNote("Plugins can add browser features or change the interface. Only install plugins from sources you trust. Changes take effect after the page reloads.");
+      const enabledPlugins = loadPluginPreferences();
+      fetch("/api/plugins", { cache: "no-store" }).then(response => {
+        if (!response.ok) throw new Error("Plugin list unavailable");
+        return response.json();
+      }).then(plugins => {
+        if (!Array.isArray(plugins) || !plugins.length) {
+          addNote("No plugins are installed. Server administrators can install plugin stores with setup.sh --plugins.");
+          return;
+        }
+        plugins.forEach(plugin => {
+          const row = document.createElement("article");
+          row.className = "internal-row plugin-row";
+          const copy = document.createElement("div");
+          copy.className = "internal-row-copy";
+          const name = document.createElement("strong");
+          name.textContent = plugin.name;
+          const detail = document.createElement("small");
+          detail.textContent = [plugin.description, plugin.version && `Version ${plugin.version}`].filter(Boolean).join(" · ") || plugin.id;
+          copy.append(name, detail);
+          const label = document.createElement("label");
+          label.className = "plugin-toggle";
+          const toggle = document.createElement("input");
+          toggle.type = "checkbox";
+          toggle.checked = enabledPlugins[plugin.id] !== false;
+          toggle.setAttribute("aria-label", `Enable ${plugin.name}`);
+          toggle.addEventListener("change", () => {
+            enabledPlugins[plugin.id] = toggle.checked;
+            savePluginPreferences(enabledPlugins);
+            location.reload();
+          });
+          label.append(toggle, document.createElement("span"));
+          row.append(copy, label);
+          list.append(row);
+        });
+      }).catch(() => addNote("Could not load the installed plugin list."));
     } else if (page === "about") {
       addNote("NightShift routes web pages through the configured proxy connection. The project source and release notes are available here:");
       addRow("NightShift source", "GitHub repository", "https://github.com/NightShift-Network/NightShift-source");
@@ -1678,6 +1756,7 @@
     openCloaked(favoriteCloakMode);
   }
 
+  loadEnabledPlugins();
   createTab(INTERNAL_NEW_TAB);
   checkAutoCloak();
 })();

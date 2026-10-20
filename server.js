@@ -1,5 +1,6 @@
 import http from "node:http";
 import path from "node:path";
+import fs from "node:fs/promises";
 import { createRequire } from "node:module";
 import express from "express";
 import { scramjetPath } from "@mercuryworkshop/scramjet/path";
@@ -8,6 +9,7 @@ import { server as wisp } from "@mercuryworkshop/wisp-js/server";
 const require = createRequire(import.meta.url);
 const packageDist = (name) => path.dirname(require.resolve(name));
 const app = express();
+const pluginsPath = path.resolve(process.env.NIGHTSHIFT_PLUGINS_DIR || path.join(process.cwd(), "..", "plugins"));
 
 app.use((req, res, next) => {
   res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
@@ -18,6 +20,37 @@ app.use("/scram", express.static(scramjetPath));
 app.use("/controller", express.static(packageDist("@mercuryworkshop/scramjet-controller")));
 app.use("/epoxy", express.static(packageDist("@mercuryworkshop/epoxy-transport")));
 app.use("/libcurl", express.static(packageDist("@mercuryworkshop/libcurl-transport")));
+app.get("/api/plugins", async (req, res) => {
+  try {
+    const stores = await fs.readdir(pluginsPath, { withFileTypes: true });
+    const plugins = [];
+    for (const store of stores.filter(entry => entry.isDirectory())) {
+      const directory = path.join(pluginsPath, store.name);
+      try {
+        const manifest = JSON.parse(await fs.readFile(path.join(directory, "plugin.json"), "utf8"));
+        if (!/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(manifest.id || "") || typeof manifest.name !== "string") continue;
+        const assetUrl = file => {
+          if (typeof file !== "string" || !/^[A-Za-z0-9._/-]+$/.test(file) || file.startsWith("/") || file.split("/").some(part => !part || part === "." || part === "..")) return null;
+          return `/plugins/${encodeURIComponent(store.name)}/${file.split("/").map(encodeURIComponent).join("/")}`;
+        };
+        plugins.push({
+          id: manifest.id,
+          name: manifest.name.slice(0, 100),
+          description: typeof manifest.description === "string" ? manifest.description.slice(0, 300) : "",
+          version: typeof manifest.version === "string" ? manifest.version.slice(0, 40) : "",
+          script: assetUrl(manifest.script),
+          styles: Array.isArray(manifest.styles) ? manifest.styles.map(assetUrl).filter(Boolean) : [],
+        });
+      } catch {}
+    }
+    res.setHeader("Cache-Control", "no-store");
+    res.json(plugins);
+  } catch (error) {
+    if (error.code === "ENOENT") return res.json([]);
+    res.status(500).json({ error: "Could not read installed plugins" });
+  }
+});
+app.use("/plugins", express.static(pluginsPath, { dotfiles: "deny", index: false }));
 app.use(express.static("public"));
 
 // Unmatched routes: serve the styled 404 page to browsers and a plain 404 to

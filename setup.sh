@@ -11,6 +11,9 @@ readonly RELOAD_HOOK="/etc/letsencrypt/renewal-hooks/deploy/50-nightshift-nginx-
 readonly RENEW_CRON="/etc/cron.d/nightshift-certbot-renew"
 
 MODE="setup"
+# Add trusted plugin store Git URLs here. Each repository is cloned into the
+# sibling plugins directory and may contain one plugin.json at its root.
+PLUGIN_STORE_URLS=()
 DOMAINS=()
 EMAIL=""
 PORT_ARG=""
@@ -74,6 +77,7 @@ Usage:
   sudo ./setup.sh [--interactive|-i]
   sudo ./setup.sh --domain HOSTNAME [HOSTNAME...] --email EMAIL [--port PORT] [--yes]
   sudo ./setup.sh --update
+  sudo ./setup.sh --plugins
   sudo ./setup.sh --start|--stop|--restart|--logs
   sudo ./setup.sh --remove [--delete-certificate]
   sudo ./setup.sh --remove-nginx [--delete-certificate]
@@ -91,6 +95,7 @@ Options:
   --port PORT             Loopback host port for NightShift (default 3005)
   --yes                   Accept safe replacements and skip confirmation prompts
   --update                Fast-forward pull the checkout, then rebuild and recreate the container
+  --plugins               Install or update configured plugin stores
   --start                 Start the container
   --stop                  Stop the container
   --restart               Restart the container
@@ -125,6 +130,7 @@ while (($#)); do
     --port) [[ $# -ge 2 ]] || { echo "--port needs a value" >&2; exit 2; }; PORT_ARG="$2"; shift 2 ;;
     --yes) YES="yes"; shift ;;
     --update) MODE="update"; shift ;;
+    --plugins) MODE="plugins"; shift ;;
     --start) MODE="start"; shift ;;
     --stop) MODE="stop"; shift ;;
     --restart) MODE="restart"; shift ;;
@@ -599,6 +605,39 @@ PORT=$((10#$PORT))
 
 COMPOSE=(docker compose --project-name nightshift --env-file "$ENV_FILE" -f "$SCRIPT_DIR/compose.yaml")
 
+plugin_directory="$SCRIPT_DIR/../plugins"
+plugin_store_name() {
+  local url="${1%/}"
+  url="${url##*/}"
+  printf '%s' "${url%.git}" | tr -cd '[:alnum:]_.-'
+}
+update_plugin_stores() {
+  command -v git >/dev/null || { echo "Git is not installed; cannot update plugin stores." >&2; return 1; }
+  mkdir -p "$plugin_directory"
+  if ((${#PLUGIN_STORE_URLS[@]} == 0)); then
+    echo "No plugin stores are configured. Add trusted Git URLs to PLUGIN_STORE_URLS in setup.sh."
+    return 0
+  fi
+  local url name target
+  for url in "${PLUGIN_STORE_URLS[@]}"; do
+    name="$(plugin_store_name "$url")"
+    [[ -n $name ]] || { echo "Could not derive a plugin store name from $url" >&2; return 1; }
+    target="$plugin_directory/$name"
+    if [[ -d "$target/.git" ]]; then
+      if [[ -n $(git -C "$target" status --porcelain) ]]; then
+        echo "Plugin store has local changes; refusing to update: $target" >&2
+        return 1
+      fi
+      git -C "$target" pull --ff-only
+    elif [[ -e $target ]]; then
+      echo "Plugin store path exists but is not a Git checkout: $target" >&2
+      return 1
+    else
+      git clone -- "$url" "$target"
+    fi
+  done
+}
+
 case "$MODE" in
   update)
     command -v docker >/dev/null || { echo "Docker is not installed; run setup first." >&2; exit 1; }
@@ -621,8 +660,14 @@ case "$MODE" in
     fi
     echo "Pulling the latest fast-forward update for $("${git_cmd[@]}" branch --show-current)..."
     "${git_cmd[@]}" pull --ff-only
+    update_plugin_stores
     [[ -f $ENV_FILE ]] || { printf 'NIGHTSHIFT_PORT=%s\n' "$PORT" > "$ENV_FILE"; chmod 600 "$ENV_FILE"; }
     "${COMPOSE[@]}" up -d --build
+    exit 0
+    ;;
+  plugins)
+    update_plugin_stores
+    echo "Plugin stores are available in $plugin_directory. Reload NightShift in your browser to discover updated plugins."
     exit 0
     ;;
   start)
