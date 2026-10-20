@@ -25,6 +25,7 @@ add_domains() {
   for d in $input; do
     d="$(printf '%s' "$d" | tr -d '[:space:]')"
     [[ -z "$d" ]] && continue
+    d="$(printf '%s' "$d" | tr '[:upper:]' '[:lower:]')"
     local exists=false
     local existing
     for existing in "${DOMAINS[@]}"; do
@@ -71,7 +72,7 @@ NightShift VPS setup
 
 Usage:
   sudo ./setup.sh [--interactive|-i]
-  sudo ./setup.sh --domain HOSTNAME [--domain HOSTNAME...] --email EMAIL [--port PORT] [--yes]
+  sudo ./setup.sh --domain HOSTNAME [HOSTNAME...] --email EMAIL [--port PORT] [--yes]
   sudo ./setup.sh --update
   sudo ./setup.sh --start|--stop|--restart|--logs
   sudo ./setup.sh --remove [--delete-certificate]
@@ -84,8 +85,8 @@ NightShift image; binds it to 127.0.0.1 on the selected host port (default
 
 Options:
   -i, --interactive       Run interactive setup wizard
-  --domain HOSTNAME       Public DNS name pointing to this VPS (repeat or comma-separate)
-  --domains HOSTNAMES     Alias for --domain (e.g. --domains "example.com, www.example.com")
+  --domain HOSTNAME...    Public DNS name(s) pointing to this VPS (space-, comma-, or repeat-separated)
+  --domains HOSTNAMES     Alias for --domain
   --email EMAIL           Contact email for a new Let's Encrypt certificate
   --port PORT             Loopback host port for NightShift (default 3005)
   --yes                   Accept safe replacements and skip confirmation prompts
@@ -110,9 +111,15 @@ while (($#)); do
   case "$1" in
     -i|--interactive) INTERACTIVE="yes"; shift ;;
     --domain|--domains)
-      [[ $# -ge 2 ]] || { echo "$1 needs a value" >&2; exit 2; }
-      add_domains "$2"
-      shift 2
+      domain_flag="$1"
+      shift
+      domain_count=0
+      while (($#)) && [[ $1 != --* ]]; do
+        add_domains "$1"
+        domain_count=$((domain_count + 1))
+        shift
+      done
+      ((domain_count > 0)) || { echo "$domain_flag needs at least one hostname" >&2; exit 2; }
       ;;
     --email) [[ $# -ge 2 ]] || { echo "--email needs a value" >&2; exit 2; }; EMAIL="$2"; shift 2 ;;
     --port) [[ $# -ge 2 ]] || { echo "--port needs a value" >&2; exit 2; }; PORT_ARG="$2"; shift 2 ;;
@@ -255,6 +262,7 @@ read_saved_domains() {
   local found=()
   add_unique() {
     local item="$1"
+    item="$(printf '%s' "$item" | tr '[:upper:]' '[:lower:]')"
     local ex
     for ex in "${found[@]}"; do
       if [[ "$ex" == "$item" ]]; then return 0; fi
@@ -470,6 +478,7 @@ interactive_setup() {
       for d in $temp_input; do
         d="$(printf '%s' "$d" | tr -d '[:space:]')"
         [[ -z "$d" ]] && continue
+        d="$(printf '%s' "$d" | tr '[:upper:]' '[:lower:]')"
         parsed_domains+=("$d")
       done
 
@@ -552,10 +561,10 @@ interactive_setup() {
   echo "--------------------------------------------------"
   echo "NightShift Setup Summary:"
   if [[ ${#DOMAINS[@]} -eq 1 ]]; then
-    echo "  Domain:        ${DOMAINS[0]}"
+    echo "  Domain/HTTPS:  ${DOMAINS[0]}"
   else
-    echo "  Domains:       ${DOMAINS[*]}"
-    echo "  Primary/Cert:  ${DOMAINS[0]}"
+    echo "  Domains/HTTPS: ${DOMAINS[*]}"
+    echo "  Certificate:   one certificate covering every domain above"
   fi
   echo "  Contact Email: $EMAIL"
   echo "  Host Port:     ${PORT_ARG:-${PORT:-3005}} (127.0.0.1:${PORT_ARG:-${PORT:-3005}})"
@@ -706,7 +715,7 @@ if [[ -f "$NGINX_SITE" ]]; then
   existing_cert="$(sed -n 's|.*ssl_certificate /etc/letsencrypt/live/\([^/]*\)/fullchain\.pem;.*|\1|p' "$NGINX_SITE" | head -n 1)"
   if [[ -n "$existing_cert" ]]; then
     for d in "${DOMAINS[@]}"; do
-      if [[ "$d" == "$existing_cert" ]]; then
+      if [[ "${d,,}" == "${existing_cert,,}" ]]; then
         CERT_NAME="$existing_cert"
         break
       fi
@@ -932,6 +941,7 @@ else
 fi
 
 if [[ $needs_cert == true ]]; then
+  echo "Requesting one HTTPS certificate for all domains: ${DOMAINS[*]}"
   certbot_cmd=(certbot --nginx --non-interactive --agree-tos --email "$EMAIL" --redirect --cert-name "$CERT_NAME" --expand)
   for d in "${DOMAINS[@]}"; do
     certbot_cmd+=(-d "$d")

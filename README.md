@@ -41,12 +41,15 @@ The script will:
 - Configure Nginx with WebSocket support for `/wisp/` and HTTP-to-HTTPS redirect
 - Obtain and configure a Let's Encrypt SSL certificate and set up automatic renewal
 
-Multiple domains can be specified with repeated `--domain` flags or comma-separated:
+Enter all hostnames in one command. The installer requests one Let's Encrypt certificate covering every hostname and configures each hostname in Nginx:
 
 ```sh
+sudo ./setup.sh --domain example.com www.example.com --email you@example.com
 sudo ./setup.sh --domain example.com --domain www.example.com --email you@example.com
 sudo ./setup.sh --domain "example.com, www.example.com" --email you@example.com
 ```
+
+Each hostname must resolve to this VPS, and inbound ports `80` and `443` must be open. Setup checks the HTTPS certificate served for every hostname before it reports success.
 
 To specify a custom loopback port (default `3005`):
 
@@ -234,7 +237,8 @@ sudo ./setup.sh --interactive
 sudo ./setup.sh --domain nightshift.example.com --email you@example.com
 sudo ./setup.sh --domain nightshift.example.com --email you@example.com --port 3010
 
-# Multiple domains (repeat --domain or comma-separate):
+# One certificate covers every hostname provided (space-, comma-, or repeat-separated):
+sudo ./setup.sh --domain nightshift.example.com proxy.example.com --email you@example.com
 sudo ./setup.sh --domain nightshift.example.com --domain proxy.example.com --email you@example.com
 sudo ./setup.sh --domain "nightshift.example.com, proxy.example.com" --email you@example.com
 ```

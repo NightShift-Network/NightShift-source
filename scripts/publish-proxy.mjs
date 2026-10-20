@@ -107,7 +107,13 @@ sudo ./setup.sh
 sudo ./setup.sh --domain proxy.example.com --email you@example.com
 \`\`\`
 
-Multiple domains can be specified with repeated \`--domain\` flags or comma-separated (e.g. \`--domain "proxy.example.com, www.proxy.example.com"\`).
+List every hostname in one command. The setup script requests a single ACME certificate covering all hostnames and configures all of them in Nginx. Hostnames can be space-separated, comma-separated, or supplied with repeated --domain flags:
+
+\`\`\`sh
+sudo ./setup.sh --domain proxy.example.com www.example.com --email you@example.com
+\`\`\`
+
+Every hostname must resolve to this VPS, and inbound ports 80 and 443 must be open. Setup verifies HTTPS for each hostname before reporting success.
 
 The setup script installs Docker, Nginx, and Certbot as needed, starts NightShift, configures HTTPS, and enables certificate renewal. Replace the example domain and email with your own values.
 
