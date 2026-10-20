@@ -618,6 +618,10 @@ plugin_store_name() {
   url="${url##*/}"
   printf '%s' "${url%.git}" | tr -cd '[:alnum:]_.-'
 }
+normalize_plugin_url() {
+  local url="${1%/}"
+  printf '%s' "${url%.git}"
+}
 install_plugin_store() {
   local url="$1" name target current_url
   if [[ ! $url =~ ^(https://|ssh://|git@)[^[:space:]]+$ ]]; then
@@ -629,7 +633,7 @@ install_plugin_store() {
   target="$plugin_directory/$name"
   if [[ -d "$target/.git" || -f "$target/.git" ]]; then
     current_url="$(git -C "$target" remote get-url origin 2>/dev/null || true)"
-    if [[ $current_url != "$url" ]]; then
+    if [[ $(normalize_plugin_url "$current_url") != "$(normalize_plugin_url "$url")" ]]; then
       echo "A different plugin store already uses $target (origin: ${current_url:-missing})." >&2
       return 1
     fi
