@@ -25,6 +25,26 @@ label[for="cloak-title"]{margin-top:16px}
 .home-footer a{color:inherit;text-decoration:none}.home-footer a:hover{color:var(--lime)}
 .bookmarks-bar[hidden]{display:none}
 
+.internal-page{position:absolute;inset:0;z-index:2;overflow:auto;background:radial-gradient(ellipse at 50% 0,#1b201b 0,#101110 58%);padding:clamp(24px,5vw,56px)}
+.internal-page[hidden]{display:none}
+.internal-content{width:min(760px,100%);margin:0 auto}
+.internal-heading{padding-bottom:20px;border-bottom:1px solid var(--line)}
+.internal-heading h1{margin:12px 0 8px;font-size:clamp(30px,5vw,46px);letter-spacing:-.05em}
+.internal-heading p,.internal-note{color:#92998f;font-size:13px;line-height:1.7;white-space:pre-wrap}
+.internal-list{display:grid;gap:9px;padding:20px 0 30px}
+.internal-row{min-width:0;display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid #2b302a;border-radius:9px;background:#171a17}
+.internal-row-copy{min-width:0;flex:1;display:grid;gap:4px}
+.internal-row-copy strong{color:#e1e5dd;font-size:12px;font-weight:600}
+.internal-row-copy small{overflow-wrap:anywhere;color:#81887e;font:10px var(--mono)}
+.internal-row .settings-add{flex:none;margin:0}
+.internal-note{margin:4px 0}
+.internal-links{position:relative;z-index:11;height:36px;gap:clamp(8px,1.6vw,22px);justify-content:flex-start;overflow-x:auto;white-space:nowrap;scrollbar-width:none}
+.internal-links::-webkit-scrollbar{display:none}
+.internal-links a{flex:none;color:#737b70;text-decoration:none;font:8px var(--mono);letter-spacing:.04em}
+.internal-links a:hover,.internal-links a[href="nightshift://help"]{color:var(--lime)}
+.settings-backdrop{z-index:10}
+@media(max-width:650px){.internal-page{padding:24px 16px}.internal-links{padding:0 10px;gap:13px}.internal-links a{font-size:8px}}
+
 /* Mobile device and responsive UI enhancements */
 @media (max-width: 768px), (pointer: coarse) and (max-width: 1024px) {
   body {

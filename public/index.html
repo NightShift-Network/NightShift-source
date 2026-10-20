@@ -9,9 +9,8 @@
   <link rel="icon" type="image/svg+xml" href="/images/nightshift.svg">
   <link rel="icon" href="/images/nightshift.ico" sizes="any">
   <link id="apple-touch-icon" rel="apple-touch-icon" href="/images/nightshift.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/fonts.css">
+  <script defer src="https://umami.palmtree.technology/script.js" data-website-id="7505e3a6-2dac-4e12-b4b8-9b9c7d1c5eb4"></script>
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -83,6 +82,7 @@
         </div>
         <footer class="home-footer"><span><span class="footer-dot"></span> BROWSING, ON YOUR TERMS</span><span>POWERED BY SCRAMJET<span class="footer-spark"> ✳</span></span><span>CREATED BY <a href="https://github.com/palmtree890" target="_blank" rel="noopener noreferrer">PALMTREE890</a></span><span>SOURCE <a href="https://github.com/NightShift-Network/NightShift-source" target="_blank" rel="noopener noreferrer">GITHUB</a></span></footer>
       </div>
+      <section id="internal-page" class="internal-page" hidden aria-live="polite"></section>
       <div id="frames" class="frames"></div>
       <div id="page-loading" class="page-loading" hidden role="status" aria-live="polite">
         <span class="loading-spinner" aria-hidden="true"></span>
@@ -91,7 +91,9 @@
         <button id="retry-other-transport" class="loading-retry" type="button" hidden>Retry with Epoxy</button>
       </div>
     </section>
-        <div class="bottomline"><span>nightshift <span class="bottom-sep">/</span> browse lightly</span><span>BROWSE FREELY</span></div>
+        <nav class="bottomline internal-links" aria-label="NightShift pages">
+          <a href="nightshift://newtab">New tab</a><a href="nightshift://settings">Settings</a><a href="nightshift://history">History</a><a href="nightshift://bookmarks">Bookmarks</a><a href="nightshift://shortcuts">Shortcuts</a><a href="nightshift://diagnostics">Diagnostics</a><a href="nightshift://about">About</a><a href="nightshift://privacy">Privacy</a><a href="nightshift://help">Help</a>
+        </nav>
       </div>
   </main>
   <div id="settings" class="settings-backdrop" hidden>

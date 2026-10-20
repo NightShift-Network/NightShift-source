@@ -2,7 +2,7 @@
 
 ## Project Structure
 
-NightShift is a Node.js/Express proxy. `server.js` serves the app, a styled 404 page for unmatched routes, and `/wisp/` WebSocket upgrades. `public/` holds the interface and Scramjet service worker; `index.html`, `style.css`, and `app.js` make up the proxy UI, while `entertainment.html` is a separate full-page, headless LuminSDK interactive entertainment catalog and player. The main UI has full-screen sidebar sections for Browser, Play, and quick cloaking. Epoxy and libcurl are selectable transports. Frontend development uses the plain files in `public/`; `scripts/publish-proxy.mjs` transforms them for the public distribution repository.
+NightShift is a Node.js/Express proxy. `server.js` serves the app, a styled 404 page for unmatched routes, and `/wisp/` WebSocket upgrades. `public/` holds the interface and Scramjet service worker; `index.html`, `style.css`, and `app.js` make up the proxy UI, while `entertainment.html` is a separate full-page, headless LuminSDK interactive entertainment catalog and player. The main UI has full-screen sidebar sections for Browser, Play, and quick cloaking, plus `nightshift://` internal browser pages. Epoxy and libcurl are selectable transports. Frontend development uses the plain files in `public/`; `scripts/publish-proxy.mjs` transforms them for the public distribution repository.
 
 ## Development Commands
 
@@ -67,6 +67,16 @@ The Play link opens `public/entertainment.html`, whose page title is Interactive
 ## Current Interface Features
 
 The Browser, Play, and Cloak sections fill the app viewport and are selected from the sidebar. Cloaking preferences include a favorite method, a configurable page behind the cloaked tab, and custom tab title/icon values. Bookmark and settings data are stored locally and can be imported or exported; preserve validation and avoid overwriting unrelated browser storage. Sites that load best with a particular transport remember it per domain under `nightshift-site-transports`; the retry button pins a host to the alternate transport, and changing the global transport in Settings clears the remembered list. Tab history tracks in-frame page changes (link clicks, redirects, and SPA pushState) by decoding the proxied frame's destination from its Scramjet URL, so Back/Forward walk a normal browsing session. Tabs show each page's real title (`<title>`, hostname fallback). WebSocket-heavy AI sites (ChatGPT, Claude, Gemini, and similar) get a tailored loading hint plus a one-click transport retry. Settings offer a sync-XHR opt-in for legacy sites and a Diagnostics section that buffers recent errors for export. The bookmark bar is rendered only when at least one bookmark exists. The home footer credits `palmtree890` with a link to the GitHub profile and a SOURCE link to `NightShift-Network/NightShift-source`.
+
+### Internal Browser Pages and Analytics
+
+The address bar accepts these app-internal URLs: `nightshift://newtab`, `nightshift://settings`, `nightshift://history`, `nightshift://bookmarks`, `nightshift://about`, `nightshift://privacy`, `nightshift://diagnostics`, `nightshift://shortcuts`, and `nightshift://help`. Keep the route allowlist in `public/app.js` in sync with the bottom navigation in `public/index.html`; unsupported `nightshift://` routes must not be treated as internal pages. Settings opens as an internal destination. History displays browsing history held in the current in-memory tabs for this session, not durable history. Bookmarks can be opened and removed. Diagnostics shows current connection details and the recent in-memory error buffer. Help links to the other internal pages. Downloads is not an implemented page and must not be added to the route list or navigation unless download tracking is implemented.
+
+The app shell loads Umami analytics from `https://umami.palmtree.technology/script.js` using the website ID in `public/index.html`. Preserve this script when editing the document head unless analytics is intentionally removed.
+
+### External Assets
+
+Keep fonts self-hosted. `public/fonts.css` defines the DM Sans and DM Mono faces served from `public/fonts/`; retain their OFL license files when updating the font assets. The main app, 404 page, and entertainment page should not fetch fonts from Google Fonts. LuminSDK remains loaded from its jsDelivr URL by `public/entertainment.html`; preserve its browser-fallback loading behavior. Umami remains an external analytics service as documented above. When adding other external runtime dependencies, prefer a locally pinned asset when licensing and update requirements allow it; ordinary destination website links and search endpoints are not app dependencies.
 
 ## Product Naming
 

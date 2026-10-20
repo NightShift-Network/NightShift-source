@@ -15,6 +15,11 @@
   const bookmarksBar = document.querySelector("#bookmarks-bar");
   const bookmarkItems = document.querySelector("#bookmark-items");
   const settingsDialog = document.querySelector("#settings");
+  const INTERNAL_NEW_TAB = "nightshift://newtab";
+  const INTERNAL_SETTINGS = "nightshift://settings";
+  const internalPage = document.querySelector("#internal-page");
+  const INTERNAL_PAGES = ["history", "bookmarks", "about", "privacy", "diagnostics", "shortcuts", "help"];
+  const INTERNAL_URLS = [INTERNAL_NEW_TAB, INTERNAL_SETTINGS, ...INTERNAL_PAGES.map(page => `nightshift://${page}`)];
   const searchEngineSelect = document.querySelector("#search-engine");
   const browserTransportSelect = document.querySelector("#browser-transport");
   const syncXhrCheckbox = document.querySelector("#sync-xhr");
@@ -94,7 +99,8 @@
 
   const icon = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>`;
   const activeTab = () => tabs.find(tab => tab.id === activeId);
-  const faviconText = (tab) => tab.url ? (new URL(tab.url).hostname.replace(/^www\./, "")[0] || "•").toUpperCase() : icon;
+  const isInternalUrl = value => INTERNAL_URLS.includes(value);
+  const faviconText = (tab) => !tab.url || isInternalUrl(tab.url) ? icon : (new URL(tab.url).hostname.replace(/^www\./, "")[0] || "•").toUpperCase();
 
   function loadSearchSettings() {
     try {
@@ -400,10 +406,10 @@
       button.className = `tab${tab.id === activeId ? " active" : ""}`;
       button.setAttribute("role", "tab");
       button.setAttribute("aria-selected", String(tab.id === activeId));
-      button.title = tab.url || "New tab";
+      button.title = tab.url || INTERNAL_NEW_TAB;
       const mark = document.createElement("span");
       mark.className = "tab-favicon";
-      if (tab.url) mark.textContent = faviconText(tab); else mark.innerHTML = icon;
+      if (tab.url && !isInternalUrl(tab.url)) mark.textContent = faviconText(tab); else mark.innerHTML = icon;
       const label = document.createElement("span");
       label.className = "tab-title";
       label.textContent = tab.title || "New tab";
@@ -418,13 +424,19 @@
       tabsEl.append(button);
     });
     tabs.forEach(tab => {
-      tab.frame.classList.toggle("active", tab.id === activeId && Boolean(tab.url));
+      tab.frame.classList.toggle("active", tab.id === activeId && Boolean(tab.url) && !isInternalUrl(tab.url));
     });
     const current = activeTab();
-    homeView.classList.toggle("hidden", Boolean(current?.url));
-    pageLoading.hidden = !(current?.url && current.loading);
+    const internalSettings = current?.url === INTERNAL_SETTINGS;
+    const internalNewTab = !current?.url || current.url === INTERNAL_NEW_TAB;
+    settingsDialog.hidden = !internalSettings;
+    if (internalSettings) populateSettings();
+    internalPage.hidden = internalNewTab || internalSettings;
+    if (!internalPage.hidden) renderInternalPage(current.url.slice("nightshift://".length));
+    homeView.classList.toggle("hidden", !internalNewTab);
+    pageLoading.hidden = !(current?.url && !isInternalUrl(current.url) && current.loading);
     const currentUrl = current?.url || "";
-    const currentHost = hostnameOf(currentUrl);
+    const currentHost = isInternalUrl(currentUrl) ? "" : hostnameOf(currentUrl);
     const currentPreferred = preferredTransportFor(currentUrl);
     const currentAlternate = currentPreferred === "libcurl" ? "epoxy" : "libcurl";
     const alternateLabel = currentAlternate === "epoxy" ? "Epoxy" : "libcurl";
@@ -445,6 +457,128 @@
     bookmarkButton.setAttribute("aria-pressed", String(currentBookmarked));
     renderBookmarks();
     renderShortcuts();
+  }
+
+  function renderInternalPage(page) {
+    const headings = {
+      history: ["History", "Pages opened in the tabs in this session."],
+      bookmarks: ["Bookmarks", "Your saved pages, stored in this browser."],
+      about: ["About NightShift", "A browser built for private, flexible browsing."],
+      privacy: ["Privacy", "How NightShift handles browser data and connections."],
+      diagnostics: ["Diagnostics", "Connection details and recent browser errors."],
+      shortcuts: ["Keyboard shortcuts", "Quick ways to move around NightShift."],
+      help: ["Help", "Quick links and guidance for using NightShift."],
+    };
+    const [title, description] = headings[page] || headings.help;
+    const shell = document.createElement("div");
+    shell.className = "internal-content";
+    const heading = document.createElement("header");
+    heading.className = "internal-heading";
+    const kicker = document.createElement("span");
+    kicker.className = "settings-kicker";
+    kicker.textContent = "NIGHTSHIFT / INTERNAL PAGE";
+    const h1 = document.createElement("h1");
+    h1.textContent = title;
+    const intro = document.createElement("p");
+    intro.textContent = description;
+    heading.append(kicker, h1, intro);
+    shell.append(heading);
+
+    const list = document.createElement("div");
+    list.className = "internal-list";
+    const addRow = (label, detail, url, actionLabel = "Open") => {
+      const row = document.createElement("article");
+      row.className = "internal-row";
+      const copy = document.createElement("div");
+      copy.className = "internal-row-copy";
+      const strong = document.createElement("strong");
+      strong.textContent = label;
+      const small = document.createElement("small");
+      small.textContent = detail;
+      copy.append(strong, small);
+      row.append(copy);
+      if (url) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "settings-add";
+        button.textContent = actionLabel;
+        button.addEventListener("click", () => navigate(url));
+        row.append(button);
+      }
+      list.append(row);
+    };
+    const addNote = text => {
+      const note = document.createElement("p");
+      note.className = "internal-note";
+      note.textContent = text;
+      list.append(note);
+    };
+    if (page === "history") {
+      const entries = tabs.flatMap(tab => tab.history.map(url => ({ url, tab }))).filter(entry => !isInternalUrl(entry.url)).reverse();
+      if (!entries.length) addNote("No web pages have been opened in this session yet.");
+      entries.forEach(({ url }) => addRow(hostnameOf(url) || url, url, url));
+      if (entries.length) {
+        const clear = document.createElement("button");
+        clear.type = "button";
+        clear.className = "settings-add";
+        clear.textContent = "Clear session history";
+        clear.addEventListener("click", () => {
+          tabs.forEach(tab => { tab.history = tab.history.filter(url => isInternalUrl(url)); tab.historyIndex = tab.history.length - 1; });
+          renderInternalPage("history");
+        });
+        list.prepend(clear);
+      }
+    } else if (page === "bookmarks") {
+      if (!bookmarks.length) addNote("No bookmarks saved yet. Open a web page and select the bookmark icon to save it.");
+      bookmarks.forEach((item, index) => {
+        addRow(item.title || hostnameOf(item.url), item.url, item.url);
+        const row = list.lastElementChild;
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "shortcut-remove";
+        remove.textContent = "×";
+        remove.setAttribute("aria-label", `Remove ${item.title || item.url}`);
+        remove.addEventListener("click", () => { bookmarks.splice(index, 1); saveBookmarks(); render(); });
+        row.append(remove);
+      });
+    } else if (page === "about") {
+      addNote("NightShift routes web pages through the configured proxy connection. The project source and release notes are available here:");
+      addRow("NightShift source", "GitHub repository", "https://github.com/NightShift-Network/NightShift-source");
+      addRow("Created by palmtree890", "GitHub profile", "https://github.com/palmtree890");
+    } else if (page === "privacy") {
+      addNote("Bookmarks, shortcuts, search preferences, cloaking options, and transport preferences are stored in this browser’s local storage. The app also loads the configured Umami analytics script to measure website usage. Browsing destinations are requested through the NightShift server, which can see destination connection details. Avoid entering sensitive information unless you trust the server operator.");
+      addRow("Review browser settings", "Search, transport, cloaking, and backup", INTERNAL_SETTINGS);
+    } else if (page === "diagnostics") {
+      addNote(buildDiagnostics());
+      if (diagnosticErrors.length) {
+        const clear = document.createElement("button");
+        clear.type = "button";
+        clear.className = "settings-add";
+        clear.textContent = "Clear recent errors";
+        clear.addEventListener("click", () => { diagnosticErrors.length = 0; renderInternalPage("diagnostics"); });
+        list.prepend(clear);
+      }
+      const copy = document.createElement("button");
+      copy.type = "button";
+      copy.className = "settings-add";
+      copy.textContent = "Copy diagnostics";
+      copy.addEventListener("click", copyDiagnostics);
+      list.append(copy);
+    } else if (page === "shortcuts") {
+      [
+        ["Focus address bar", "Ctrl / ⌘ + L", ""],
+        ["Open a new tab", "Ctrl / ⌘ + T", "nightshift://newtab"],
+        ["Close the current tab", "Ctrl / ⌘ + W", ""],
+        ["Go back / forward", "Alt + ← / →", ""],
+      ].forEach(([label, detail, url]) => addRow(label, detail, url));
+      addRow("Manage quick access", "Edit the sites shown on the new tab page", INTERNAL_SETTINGS);
+    } else {
+      addNote("Use the address bar to open a website or enter an internal NightShift page. Settings, bookmarks, and shortcuts are stored locally in this browser.");
+      INTERNAL_PAGES.forEach(route => addRow(route[0].toUpperCase() + route.slice(1), `nightshift://${route}`, `nightshift://${route}`));
+      addRow("Open Settings", "Change search, transport, cloaking, and quick access", INTERNAL_SETTINGS);
+    }
+    shell.append(list);
+    internalPage.replaceChildren(shell);
   }
 
   function renderBookmarks() {
@@ -549,7 +683,7 @@
     render();
   }
 
-  function createTab(url = "", restored = null) {
+  function createTab(url = INTERNAL_NEW_TAB, restored = null) {
     const id = restored?.id ?? nextId++;
     nextId = Math.max(nextId, id + 1);
     const frame = document.createElement("iframe");
@@ -598,6 +732,10 @@
   function normalizeInput(value) {
     const input = value.trim();
     if (!input) return "";
+    if (/^nightshift:\/\/[a-z]+\/?$/i.test(input)) {
+      const route = input.toLowerCase().replace(/\/$/, "");
+      if (INTERNAL_URLS.includes(route)) return route;
+    }
     if (/^(https?:\/\/|about:)/i.test(input)) return input;
     if (/^(localhost|\d{1,3}(\.\d{1,3}){3})(:\d+)?([/?:#]|$)/i.test(input) || /^[^\s]+\.[a-z]{2,}(:\d+)?([/?:#]|$)/i.test(input)) return `https://${input}`;
     const template = searchSettings.engine === "custom" ? searchSettings.endpoint : SEARCH_ENGINES[searchSettings.engine];
@@ -684,9 +822,14 @@
       tab.historyIndex = tab.history.length - 1;
     }
     tab.url = target;
-    tab.title = "Loading…";
-    tab.loading = true;
+    tab.title = target === INTERNAL_SETTINGS ? "Settings" : target === INTERNAL_NEW_TAB ? "New tab" : "Loading…";
+    tab.loading = !isInternalUrl(target);
     tab.slowLoading = false;
+    if (isInternalUrl(target)) {
+      tab.frameUrl = "";
+      render();
+      return;
+    }
     tab.loadingTimer = setTimeout(() => {
       if (tab.loading) {
         tab.slowLoading = true;
@@ -735,14 +878,7 @@
     if (tab?.url) navigate(tab.url, { history: true });
   });
   document.querySelector("#home").addEventListener("click", () => {
-    const tab = activeTab();
-    if (!tab) return;
-    tab.url = "";
-    tab.title = "New tab";
-    clearTimeout(tab.loadingTimer);
-    tab.loading = false;
-    tab.slowLoading = false;
-    render();
+    navigate(INTERNAL_NEW_TAB);
   });
   bookmarkButton.addEventListener("click", () => {
     const tab = activeTab();
@@ -795,7 +931,7 @@
     heroAddress.placeholder = `Search ${labels[searchSettings.engine] || "the web"} or enter an address`;
   }
 
-  function openSettings() {
+  function populateSettings() {
     searchEngineSelect.value = searchSettings.engine;
     browserTransportSelect.value = browserTransport;
     if (syncXhrCheckbox) syncXhrCheckbox.checked = syncXhr;
@@ -809,12 +945,16 @@
     customSearchInput.value = searchSettings.endpoint;
     renderShortcutEditor();
     showCustomSearchSetting();
+  }
+
+  function openSettings() {
+    populateSettings();
     settingsDialog.hidden = false;
     searchEngineSelect.focus();
   }
 
   function closeSettings() {
-    settingsDialog.hidden = true;
+    navigate(INTERNAL_NEW_TAB);
   }
 
   function exportBackup() {
@@ -950,12 +1090,15 @@
     }
   }
 
-  document.querySelector(".settings-button").addEventListener("click", openSettings);
-  document.querySelector("#settings-close").addEventListener("click", closeSettings);
-  document.querySelector("#settings-cancel").addEventListener("click", closeSettings);
-  settingsDialog.addEventListener("click", event => {
-    if (event.target === settingsDialog) closeSettings();
+  document.querySelector(".settings-button").addEventListener("click", () => navigate(INTERNAL_SETTINGS));
+  document.querySelector(".internal-links").addEventListener("click", event => {
+    const link = event.target.closest("a[href^='nightshift://']");
+    if (!link) return;
+    event.preventDefault();
+    navigate(link.getAttribute("href"));
   });
+  document.querySelector("#settings-close").addEventListener("click", () => navigate(INTERNAL_NEW_TAB));
+  document.querySelector("#settings-cancel").addEventListener("click", () => navigate(INTERNAL_NEW_TAB));
   searchEngineSelect.addEventListener("change", showCustomSearchSetting);
   document.querySelector("#export-settings").addEventListener("click", exportBackup);
   document.querySelector("#copy-diagnostics").addEventListener("click", copyDiagnostics);
@@ -1133,7 +1276,7 @@
     }
   });
   document.addEventListener("keydown", event => {
-    if (event.key === "Escape" && !settingsDialog.hidden) closeSettings();
+    if (event.key === "Escape" && !settingsDialog.hidden) navigate(INTERNAL_NEW_TAB);
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "l") { event.preventDefault(); address.focus(); address.select(); }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "t") { event.preventDefault(); createTab(); }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "w" && tabs.length > 1) { event.preventDefault(); closeTab(activeId); }
@@ -1179,6 +1322,6 @@
     openCloaked(favoriteCloakMode);
   }
 
-  createTab();
+  createTab(INTERNAL_NEW_TAB);
   checkAutoCloak();
 })();
