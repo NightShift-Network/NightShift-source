@@ -77,6 +77,7 @@ Usage:
   sudo ./setup.sh --update
   sudo ./setup.sh --plugins
   sudo ./setup.sh --plugin-url https://github.com/example/nightshift-plugin-store.git
+  sudo ./setup.sh --remove-plugin [STORE_NAME]
   sudo ./setup.sh --start|--stop|--restart|--logs
   sudo ./setup.sh --remove [--delete-certificate]
   sudo ./setup.sh --remove-nginx [--delete-certificate]
@@ -96,6 +97,7 @@ Options:
   --update                Fast-forward pull the checkout, then rebuild and recreate the container
   --plugins               Prompt for plugin store URLs, then update installed stores
   --plugin-url URL        Add a plugin store Git URL and install it (repeatable)
+  --remove-plugin [NAME]  Remove one installed plugin store (prompts when NAME is omitted)
   --start                 Start the container
   --stop                  Stop the container
   --restart               Restart the container
@@ -136,6 +138,14 @@ while (($#)); do
       PLUGIN_URLS+=("$2")
       MODE="plugins"
       shift 2
+      ;;
+    --remove-plugin)
+      MODE="remove_plugin"
+      shift
+      if (($#)) && [[ $1 != --* ]]; then
+        REMOVE_PLUGIN_NAME="$1"
+        shift
+      fi
       ;;
     --start) MODE="start"; shift ;;
     --stop) MODE="stop"; shift ;;
@@ -700,6 +710,55 @@ case "$MODE" in
     for plugin_url in "${PLUGIN_URLS[@]}"; do install_plugin_store "$plugin_url"; done
     update_plugin_stores
     echo "Plugin stores are available in $plugin_directory. Reload NightShift in your browser to discover updated plugins."
+    exit 0
+    ;;
+  remove_plugin)
+    plugin_stores=()
+    if [[ -d $plugin_directory ]]; then
+      for target in "$plugin_directory"/*; do
+        [[ -d $target && ( -d "$target/.git" || -f "$target/.git" ) ]] || continue
+        plugin_stores+=("${target##*/}")
+      done
+    fi
+    if [[ -z ${REMOVE_PLUGIN_NAME:-} ]]; then
+      if [[ ! -r /dev/tty ]]; then
+        echo "Specify a store name, or run interactively: sudo ./setup.sh --remove-plugin" >&2
+        if ((${#plugin_stores[@]})); then
+          printf 'Installed stores: %s\n' "${plugin_stores[*]}" >&2
+        else
+          echo "No installed plugin stores were found." >&2
+        fi
+        exit 2
+      fi
+      ((${#plugin_stores[@]} > 0)) || { echo "No installed plugin stores were found in $plugin_directory."; exit 0; }
+      echo "Installed plugin stores:"
+      for index in "${!plugin_stores[@]}"; do
+        printf '  %d) %s\n' "$((index + 1))" "${plugin_stores[$index]}"
+      done
+      read -r -p "Store number or name to remove: " selection </dev/tty || exit 1
+      if [[ $selection =~ ^[0-9]+$ ]]; then
+        selection=$((10#$selection))
+        ((selection >= 1 && selection <= ${#plugin_stores[@]})) || { echo "Invalid plugin store selection." >&2; exit 2; }
+        REMOVE_PLUGIN_NAME="${plugin_stores[$((selection - 1))]}"
+      else
+        REMOVE_PLUGIN_NAME="$selection"
+      fi
+    fi
+    if [[ ! $REMOVE_PLUGIN_NAME =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+      echo "Invalid plugin store name: $REMOVE_PLUGIN_NAME" >&2
+      exit 2
+    fi
+    target="$plugin_directory/$REMOVE_PLUGIN_NAME"
+    if [[ ! -d $target || ( ! -d "$target/.git" && ! -f "$target/.git" ) ]]; then
+      echo "Plugin store '$REMOVE_PLUGIN_NAME' was not found in $plugin_directory." >&2
+      exit 1
+    fi
+    if ! confirm "Permanently remove plugin store '$REMOVE_PLUGIN_NAME' and its local checkout?"; then
+      echo "Plugin store removal cancelled."
+      exit 1
+    fi
+    rm -rf -- "$target"
+    echo "Removed plugin store '$REMOVE_PLUGIN_NAME'. Reload NightShift in your browser to apply the change."
     exit 0
     ;;
   start)

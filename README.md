@@ -88,6 +88,15 @@ The loader finds a plugin manifest at the store root or one directory below it. 
 
 The script and styles are optional. Plugins are enabled by default and can be disabled at `nightshift://plugins`; the selection is stored in the visitor's local browser storage. Plugin scripts run in the NightShift page with its browser permissions, so only use stores you trust. No plugin stores are configured by default yet.
 
+Remove a complete plugin store checkout by name. Omit the name to choose from an interactive list:
+
+```sh
+sudo ./setup.sh --remove-plugin plugins
+sudo ./setup.sh --remove-plugin
+```
+
+The command asks for confirmation before deleting the selected store directory. Reload NightShift afterward to update the Plugins page.
+
 ### Removal and Cleanup
 
 ```sh
