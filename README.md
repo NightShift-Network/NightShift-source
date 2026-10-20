@@ -86,7 +86,11 @@ sudo ./setup.sh --delete-certificate
 ## Features
 
 - Full-screen sidebar navigation for Browser, Play, and quick cloaking access
-- Multi-tab browsing, address/search bar, an editable homepage, and configurable quick-access shortcuts
+- Multi-tab browsing with `nightshift://` pages for New Tab, Settings, History, Bookmarks, Shortcuts, Diagnostics, About, Privacy, and Help
+- Quick switcher (`Ctrl+K` / `⌘K`) for open tabs, bookmarks, browsing history, and internal pages
+- Keyboard shortcuts including `Ctrl+Shift+T` to open a tab and `Ctrl+W` or `Ctrl+Alt+W` to close one
+- Full-screen browsing with a compact address bar and Escape exit
+- Address/search bar, editable homepage, and configurable quick-access shortcuts
 - A bookmarks bar that appears only when bookmarks are saved; bookmarks persist in browser storage
 - Search choices for DuckDuckGo, Brave, Startpage, Palmtree Search, and custom URL templates
 - Epoxy and libcurl transport choices
