@@ -12,6 +12,11 @@
   const heroAddress = document.querySelector("#hero-address");
   const toast = document.querySelector("#toast");
   const bookmarkButton = document.querySelector("#bookmark");
+  const browserShell = document.querySelector(".browser");
+  const fullscreenButton = document.querySelector("#enter-fullscreen");
+  const fullscreenExitButton = document.querySelector("#exit-fullscreen");
+  let fullscreenMode = false;
+  let nativeFullscreenMode = false;
   const bookmarksBar = document.querySelector("#bookmarks-bar");
   const bookmarkItems = document.querySelector("#bookmark-items");
   const settingsDialog = document.querySelector("#settings");
@@ -20,6 +25,8 @@
   const internalPage = document.querySelector("#internal-page");
   const INTERNAL_PAGES = ["history", "bookmarks", "about", "privacy", "diagnostics", "shortcuts", "help"];
   const INTERNAL_URLS = [INTERNAL_NEW_TAB, INTERNAL_SETTINGS, ...INTERNAL_PAGES.map(page => `nightshift://${page}`)];
+  const HISTORY_KEY = "nightshift-browsing-history";
+  const MAX_HISTORY_ENTRIES = 500;
   const searchEngineSelect = document.querySelector("#search-engine");
   const browserTransportSelect = document.querySelector("#browser-transport");
   const syncXhrCheckbox = document.querySelector("#sync-xhr");
@@ -76,6 +83,8 @@
   let cloakSettings = loadCloakSettings();
   let appleTouchDisguise = loadAppleTouchDisguise();
   let bookmarks = loadBookmarks();
+  let browsingHistory = loadBrowsingHistory();
+  let historySearch = "";
   let tabs = [];
   let activeId = null;
   let nextId = 1;
@@ -234,10 +243,14 @@
     tab.frameUrl = dest;
     if (tab.loading || dest === tab.url) return; // app-initiated navigation completing
     tab.history = tab.history.slice(0, tab.historyIndex + 1);
+    tab.historyEntryIds = (tab.historyEntryIds || []).slice(0, tab.historyIndex + 1);
     tab.history.push(dest);
+    let title = "";
+    try { title = tab.frame.contentDocument?.title?.trim() || ""; } catch {}
+    tab.historyEntryIds.push(recordHistoryVisit(dest, title));
     tab.historyIndex = tab.history.length - 1;
     tab.url = dest;
-    tab.title = "Loading…";
+    tab.title = title || "Loading…";
   }
 
   // Poll the active frame's location: full navigations fire the iframe "load"
@@ -245,7 +258,7 @@
   function startFrameWatcher(tab) {
     clearInterval(tab.locationTimer);
     tab.locationTimer = setInterval(() => {
-      if (tab.id !== activeId || !tab.url) return;
+      if (tab.id !== activeId || !tab.url || isInternalUrl(tab.url)) return;
       const dest = decodeFrameUrl(tab.frame);
       if (!dest || dest === tab.frameUrl) return;
       const wasLoading = tab.loading;
@@ -253,7 +266,10 @@
       if (!wasLoading) {
         let spaTitle = "";
         try { spaTitle = tab.frame.contentDocument?.title?.trim() || ""; } catch {}
-        if (spaTitle) tab.title = spaTitle;
+        if (spaTitle) {
+          tab.title = spaTitle;
+          updateHistoryVisitTitle(tab.historyEntryIds?.[tab.historyIndex], spaTitle);
+        }
         render();
       }
     }, 800);
@@ -384,6 +400,51 @@
     try { localStorage.setItem("nightshift-bookmarks", JSON.stringify(bookmarks)); } catch {}
   }
 
+  function loadBrowsingHistory() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+      if (!Array.isArray(saved)) return [];
+      return saved.filter(entry => {
+        if (!entry || typeof entry.url !== "string" || typeof entry.title !== "string" || typeof entry.visitedAt !== "string") return false;
+        try { return ["http:", "https:"].includes(new URL(entry.url).protocol); } catch { return false; }
+      }).slice(0, MAX_HISTORY_ENTRIES);
+    } catch { return []; }
+  }
+
+  function saveBrowsingHistory() {
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(browsingHistory)); } catch {}
+  }
+
+  function recordHistoryVisit(url, title = "") {
+    if (isInternalUrl(url)) return null;
+    let parsed;
+    try { parsed = new URL(url); } catch { return null; }
+    if (!["http:", "https:"].includes(parsed.protocol)) return null;
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    browsingHistory.unshift({ id, url: parsed.href, title: title.trim() || parsed.hostname.replace(/^www\./, ""), visitedAt: new Date().toISOString() });
+    browsingHistory = browsingHistory.slice(0, MAX_HISTORY_ENTRIES);
+    saveBrowsingHistory();
+    return id;
+  }
+
+  function updateHistoryVisitTitle(id, title) {
+    if (!id || !title) return;
+    const entry = browsingHistory.find(item => item.id === id);
+    if (!entry || !title.trim()) return;
+    entry.title = title.trim().slice(0, 300);
+    saveBrowsingHistory();
+  }
+
+  function clearBrowsingHistory() {
+    browsingHistory = [];
+    saveBrowsingHistory();
+    tabs.forEach(tab => {
+      tab.history = tab.url ? [tab.url] : [];
+      tab.historyEntryIds = tab.url ? [null] : [];
+      tab.historyIndex = tab.history.length - 1;
+    });
+  }
+
   function updateBookmarkForTab(tab) {
     const saved = bookmarks.find(item => item.url === tab.url);
     if (!saved) return;
@@ -427,11 +488,19 @@
       tab.frame.classList.toggle("active", tab.id === activeId && Boolean(tab.url) && !isInternalUrl(tab.url));
     });
     const current = activeTab();
+    const canFullscreen = Boolean(current?.url && !isInternalUrl(current.url));
+    fullscreenButton.disabled = !canFullscreen;
+    fullscreenButton.setAttribute("aria-pressed", String(fullscreenMode));
+    fullscreenButton.title = fullscreenMode ? "Exit fullscreen" : "Enter fullscreen";
+    fullscreenButton.setAttribute("aria-label", fullscreenButton.title);
+    fullscreenExitButton.hidden = !fullscreenMode;
     const internalSettings = current?.url === INTERNAL_SETTINGS;
     const internalNewTab = !current?.url || current.url === INTERNAL_NEW_TAB;
+    const internalRoute = Boolean(current?.url && isInternalUrl(current.url));
     settingsDialog.hidden = !internalSettings;
     if (internalSettings) populateSettings();
-    internalPage.hidden = internalNewTab || internalSettings;
+    internalPage.hidden = !internalRoute || internalNewTab || internalSettings;
+    internalPage.classList.toggle("is-visible", !internalPage.hidden);
     if (!internalPage.hidden) renderInternalPage(current.url.slice("nightshift://".length));
     homeView.classList.toggle("hidden", !internalNewTab);
     pageLoading.hidden = !(current?.url && !isInternalUrl(current.url) && current.loading);
@@ -451,7 +520,9 @@
     const historyIndex = current?.historyIndex ?? -1;
     backButton.disabled = !current?.url || historyIndex <= 0;
     forwardButton.disabled = !current?.url || historyIndex >= (current?.history.length ?? 1) - 1;
-    address.value = current?.url || "";
+    // Rendering can be triggered by frame events while the user is typing.
+    // Keep the in-progress address instead of replacing it with the old URL.
+    if (document.activeElement !== address) address.value = current?.url || "";
     const currentBookmarked = Boolean(current?.url && bookmarks.some(item => item.url === current.url));
     bookmarkButton.classList.toggle("saved", currentBookmarked);
     bookmarkButton.setAttribute("aria-pressed", String(currentBookmarked));
@@ -461,7 +532,7 @@
 
   function renderInternalPage(page) {
     const headings = {
-      history: ["History", "Pages opened in the tabs in this session."],
+      history: ["History", "Search pages you’ve opened in this browser."],
       bookmarks: ["Bookmarks", "Your saved pages, stored in this browser."],
       about: ["About NightShift", "A browser built for private, flexible browsing."],
       privacy: ["Privacy", "How NightShift handles browser data and connections."],
@@ -514,19 +585,45 @@
       list.append(note);
     };
     if (page === "history") {
-      const entries = tabs.flatMap(tab => tab.history.map(url => ({ url, tab }))).filter(entry => !isInternalUrl(entry.url)).reverse();
-      if (!entries.length) addNote("No web pages have been opened in this session yet.");
-      entries.forEach(({ url }) => addRow(hostnameOf(url) || url, url, url));
-      if (entries.length) {
+      const search = document.createElement("input");
+      search.type = "search";
+      search.className = "history-search";
+      search.placeholder = "Search history";
+      search.setAttribute("aria-label", "Search browsing history");
+      search.value = historySearch;
+      list.append(search);
+      const results = document.createElement("div");
+      results.className = "history-results";
+      list.append(results);
+      const renderHistoryResults = () => {
+        results.replaceChildren();
+        const query = historySearch.trim().toLowerCase();
+        const entries = browsingHistory.filter(entry => !query || `${entry.title} ${entry.url}`.toLowerCase().includes(query));
+        if (!entries.length) {
+          const empty = document.createElement("p");
+          empty.className = "internal-note";
+          empty.textContent = browsingHistory.length ? "No history matches that search." : "No web pages have been opened yet.";
+          results.append(empty);
+        }
+        entries.forEach(entry => {
+          let dateLabel = entry.visitedAt;
+          try { dateLabel = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(entry.visitedAt)); } catch {}
+          addRow(entry.title || hostnameOf(entry.url) || entry.url, `${entry.url} · ${dateLabel}`, entry.url);
+          results.append(list.lastElementChild);
+        });
+      };
+      search.addEventListener("input", () => { historySearch = search.value; renderHistoryResults(); });
+      renderHistoryResults();
+      if (browsingHistory.length) {
         const clear = document.createElement("button");
         clear.type = "button";
         clear.className = "settings-add";
-        clear.textContent = "Clear session history";
+        clear.textContent = "Clear history";
         clear.addEventListener("click", () => {
-          tabs.forEach(tab => { tab.history = tab.history.filter(url => isInternalUrl(url)); tab.historyIndex = tab.history.length - 1; });
+          clearBrowsingHistory();
           renderInternalPage("history");
         });
-        list.prepend(clear);
+        list.insertBefore(clear, results);
       }
     } else if (page === "bookmarks") {
       if (!bookmarks.length) addNote("No bookmarks saved yet. Open a web page and select the bookmark icon to save it.");
@@ -546,7 +643,7 @@
       addRow("NightShift source", "GitHub repository", "https://github.com/NightShift-Network/NightShift-source");
       addRow("Created by palmtree890", "GitHub profile", "https://github.com/palmtree890");
     } else if (page === "privacy") {
-      addNote("Bookmarks, shortcuts, search preferences, cloaking options, and transport preferences are stored in this browser’s local storage. The app also loads the configured Umami analytics script to measure website usage. Browsing destinations are requested through the NightShift server, which can see destination connection details. Avoid entering sensitive information unless you trust the server operator.");
+      addNote("History, bookmarks, shortcuts, search preferences, cloaking options, and transport preferences are stored in this browser’s local storage. The app also loads the configured Umami analytics script to measure website usage. Browsing destinations are requested through the NightShift server, which can see destination connection details. Avoid entering sensitive information unless you trust the server operator.");
       addRow("Review browser settings", "Search, transport, cloaking, and backup", INTERNAL_SETTINGS);
     } else if (page === "diagnostics") {
       addNote(buildDiagnostics());
@@ -567,13 +664,19 @@
     } else if (page === "shortcuts") {
       [
         ["Focus address bar", "Ctrl / ⌘ + L", ""],
-        ["Open a new tab", "Ctrl / ⌘ + T", "nightshift://newtab"],
+        ["Open a new tab", "Ctrl / ⌘ + T", ""],
         ["Close the current tab", "Ctrl / ⌘ + W", ""],
+        ["Bookmark or remove this page", "Ctrl / ⌘ + D", ""],
+        ["Open Settings", "Ctrl / ⌘ + ,", INTERNAL_SETTINGS],
+        ["Open History", "Ctrl / ⌘ + H", "nightshift://history"],
+        ["Open Bookmarks", "Ctrl / ⌘ + Shift + B", "nightshift://bookmarks"],
+        ["Switch to next / previous tab", "Ctrl / ⌘ + Tab; Ctrl / ⌘ + Shift + Tab", ""],
+        ["Switch to a tab by number", "Ctrl / ⌘ + 1–8; 9 selects the last tab", ""],
         ["Go back / forward", "Alt + ← / →", ""],
       ].forEach(([label, detail, url]) => addRow(label, detail, url));
       addRow("Manage quick access", "Edit the sites shown on the new tab page", INTERNAL_SETTINGS);
     } else {
-      addNote("Use the address bar to open a website or enter an internal NightShift page. Settings, bookmarks, and shortcuts are stored locally in this browser.");
+      addNote("Use the address bar to open a website or enter an internal NightShift page. History, bookmarks, and settings are stored locally in this browser.");
       INTERNAL_PAGES.forEach(route => addRow(route[0].toUpperCase() + route.slice(1), `nightshift://${route}`, `nightshift://${route}`));
       addRow("Open Settings", "Change search, transport, cloaking, and quick access", INTERNAL_SETTINGS);
     }
@@ -678,6 +781,8 @@
 
   function activate(id) {
     if (!tabs.some(tab => tab.id === id)) return;
+    const nextTab = tabs.find(tab => tab.id === id);
+    if (fullscreenMode && (!nextTab.url || isInternalUrl(nextTab.url))) exitFullscreenMode();
     activeId = id;
     startFrameWatcher(tabs.find(tab => tab.id === id));
     render();
@@ -693,6 +798,14 @@
     frame.addEventListener("load", () => {
       const tab = tabs.find(item => item.id === id);
       if (!tab || !tab.url) return;
+      try {
+        const frameDocument = tab.frame.contentDocument;
+        if (frameDocument && tab.shortcutDocument !== frameDocument) {
+          tab.shortcutDocument?.removeEventListener("keydown", handleKeyboardShortcuts, true);
+          frameDocument.addEventListener("keydown", handleKeyboardShortcuts, true);
+          tab.shortcutDocument = frameDocument;
+        }
+      } catch {}
       const dest = decodeFrameUrl(tab.frame);
       if (dest && dest !== tab.frameUrl) recordFrameDestination(tab, dest);
       clearTimeout(tab.loadingTimer);
@@ -704,12 +817,13 @@
         try { pageTitle = tab.frame.contentDocument?.title?.trim() || ""; } catch {}
         tab.title = pageTitle || new URL(tab.url).hostname.replace(/^www\./, "");
       }
+      updateHistoryVisitTitle(tab.historyEntryIds?.[tab.historyIndex], tab.title);
       updateBookmarkForTab(tab);
       rememberSiteTransport(tab.url, activeTransport);
       render();
     });
     framesEl.append(frame);
-    const tab = { id, url: "", title: "New tab", frame, browserFrame: null, history: [], historyIndex: -1, loading: false, slowLoading: false, loadingTimer: null, frameUrl: "", locationTimer: null };
+    const tab = { id, url: "", title: "New tab", frame, browserFrame: null, history: [], historyEntryIds: [], historyIndex: -1, loading: false, slowLoading: false, loadingTimer: null, frameUrl: "", locationTimer: null };
     tabs.push(tab);
     activeId = id;
     startFrameWatcher(tab);
@@ -815,10 +929,13 @@
     if (!tab) return;
     const target = normalizeInput(value);
     if (!target) return;
+    if (fullscreenMode && isInternalUrl(target)) exitFullscreenMode();
     clearTimeout(tab.loadingTimer);
     if (!options.history) {
       tab.history = tab.history.slice(0, tab.historyIndex + 1);
+      tab.historyEntryIds = (tab.historyEntryIds || []).slice(0, tab.historyIndex + 1);
       tab.history.push(target);
+      tab.historyEntryIds.push(recordHistoryVisit(target));
       tab.historyIndex = tab.history.length - 1;
     }
     tab.url = target;
@@ -862,6 +979,19 @@
     navigate(tab.history[index], { history: true });
   }
 
+  function activateRelativeTab(delta) {
+    if (tabs.length < 2) return;
+    const index = tabs.findIndex(tab => tab.id === activeId);
+    const next = (index + delta + tabs.length) % tabs.length;
+    activate(tabs[next].id);
+  }
+
+  function activateNumberedTab(number) {
+    if (!tabs.length) return;
+    const index = number === 9 ? tabs.length - 1 : number - 1;
+    if (tabs[index]) activate(tabs[index].id);
+  }
+
   document.querySelector("#address-form").addEventListener("submit", event => {
     event.preventDefault();
     navigate(address.value);
@@ -882,7 +1012,7 @@
   });
   bookmarkButton.addEventListener("click", () => {
     const tab = activeTab();
-    if (!tab?.url) { notify("Open a page to bookmark it."); return; }
+    if (!tab?.url || isInternalUrl(tab.url)) { notify("Open a website to bookmark it."); return; }
     const index = bookmarks.findIndex(item => item.url === tab.url);
     if (index >= 0) {
       bookmarks.splice(index, 1);
@@ -1266,6 +1396,59 @@
     openCloaked(cloakMode, cloakSettings);
   });
   cloakTabButton.addEventListener("click", () => openCloaked(favoriteCloakMode));
+  function enterFullscreenMode() {
+    const current = activeTab();
+    if (!current?.url || isInternalUrl(current.url)) return;
+    const applyFullscreen = () => {
+      const active = activeTab();
+      if (!active || active.id !== current.id || isInternalUrl(active.url)) {
+        if (document.fullscreenElement === browserShell && typeof document.exitFullscreen === "function") {
+          Promise.resolve(document.exitFullscreen()).catch(() => {});
+        }
+        nativeFullscreenMode = false;
+        return;
+      }
+      fullscreenMode = true;
+      document.documentElement.classList.add("fullscreen-mode");
+      fullscreenExitButton.hidden = false;
+      fullscreenButton.setAttribute("aria-pressed", "true");
+      fullscreenButton.title = "Exit fullscreen";
+      fullscreenButton.setAttribute("aria-label", "Exit fullscreen");
+    };
+    if (typeof browserShell.requestFullscreen === "function" && !document.fullscreenElement) {
+      nativeFullscreenMode = true;
+      try {
+        Promise.resolve(browserShell.requestFullscreen({ navigationUI: "hide" })).then(applyFullscreen).catch(() => {
+          nativeFullscreenMode = false;
+          applyFullscreen();
+        });
+      } catch {
+        nativeFullscreenMode = false;
+        applyFullscreen();
+      }
+    } else {
+      applyFullscreen();
+    }
+  }
+
+  function exitFullscreenMode() {
+    fullscreenMode = false;
+    nativeFullscreenMode = false;
+    document.documentElement.classList.remove("fullscreen-mode");
+    fullscreenExitButton.hidden = true;
+    fullscreenButton.setAttribute("aria-pressed", "false");
+    fullscreenButton.title = "Enter fullscreen";
+    fullscreenButton.setAttribute("aria-label", "Enter fullscreen");
+    if (document.fullscreenElement === browserShell && typeof document.exitFullscreen === "function") {
+      Promise.resolve(document.exitFullscreen()).catch(() => {});
+    }
+  }
+
+  fullscreenButton.addEventListener("click", () => fullscreenMode ? exitFullscreenMode() : enterFullscreenMode());
+  fullscreenExitButton.addEventListener("click", exitFullscreenMode);
+  document.addEventListener("fullscreenchange", () => {
+    if (nativeFullscreenMode && document.fullscreenElement !== browserShell) exitFullscreenMode();
+  });
   browserTabButton.addEventListener("click", () => {
     const current = activeTab();
     if (!current || !current.url) {
@@ -1275,14 +1458,29 @@
       address.select();
     }
   });
-  document.addEventListener("keydown", event => {
+  function handleKeyboardShortcuts(event) {
+    if (fullscreenMode && event.key === "Escape") {
+      event.preventDefault();
+      exitFullscreenMode();
+      return;
+    }
     if (event.key === "Escape" && !settingsDialog.hidden) navigate(INTERNAL_NEW_TAB);
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "l") { event.preventDefault(); address.focus(); address.select(); }
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "t") { event.preventDefault(); createTab(); }
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "w" && tabs.length > 1) { event.preventDefault(); closeTab(activeId); }
-    if (event.altKey && event.key === "ArrowLeft") goHistory(-1);
-    if (event.altKey && event.key === "ArrowRight") goHistory(1);
-  });
+    const modifier = event.ctrlKey || event.metaKey;
+    const key = event.key.toLowerCase();
+    if (modifier && key === "l") { event.preventDefault(); address.focus(); address.select(); }
+    if (modifier && key === "t") { event.preventDefault(); createTab(); }
+    if (modifier && key === "w") { event.preventDefault(); if (tabs.length > 1) closeTab(activeId); else navigate(INTERNAL_NEW_TAB); }
+    if (modifier && key === "d") { event.preventDefault(); bookmarkButton.click(); }
+    if (modifier && key === ",") { event.preventDefault(); navigate(INTERNAL_SETTINGS); }
+    if (modifier && key === "h") { event.preventDefault(); navigate("nightshift://history"); }
+    if (modifier && event.shiftKey && key === "b") { event.preventDefault(); navigate("nightshift://bookmarks"); }
+    if (modifier && event.key === "Tab") { event.preventDefault(); activateRelativeTab(event.shiftKey ? -1 : 1); }
+    if (modifier && /^[1-9]$/.test(event.key)) { event.preventDefault(); activateNumberedTab(Number(event.key)); }
+    if (event.altKey && event.key === "ArrowLeft") { event.preventDefault(); goHistory(-1); }
+    if (event.altKey && event.key === "ArrowRight") { event.preventDefault(); goHistory(1); }
+  }
+
+  document.addEventListener("keydown", handleKeyboardShortcuts);
 
   function checkMobileDevice() {
     const ua = navigator.userAgent || "";

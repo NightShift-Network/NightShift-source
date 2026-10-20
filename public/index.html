@@ -43,6 +43,7 @@
         <section class="tabbar" aria-label="Browser tabs">
           <div id="tabs" class="tabs" role="tablist"></div>
           <button id="new-tab" class="new-tab" title="New tab" aria-label="Open new tab"><span>+</span></button>
+          <button id="enter-fullscreen" class="icon-button fullscreen-button" type="button" title="Enter fullscreen" aria-label="Enter fullscreen" aria-pressed="false" disabled><svg viewBox="0 0 24 24"><path d="M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4"/></svg></button>
         </section>
 
     <nav class="toolbar" aria-label="Browser controls">
@@ -56,6 +57,7 @@
         <span class="address-lock" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 1 1 8 0v3"/></svg></span>
         <input id="address" type="text" placeholder="Search or enter a website" autocomplete="off" spellcheck="false" aria-label="Search or enter a website">
         <kbd>↵</kbd>
+        <button id="exit-fullscreen" class="fullscreen-exit" type="button" title="Exit fullscreen" aria-label="Exit fullscreen" hidden>Esc</button>
       </form>
       <button id="bookmark" class="icon-button bookmark" title="Bookmark this page" aria-label="Bookmark this page"><svg viewBox="0 0 24 24"><path d="M6 4.8c0-.4.4-.8.8-.8h10.4c.4 0 .8.4.8.8V21l-6.8-4-6.2 4V4.8Z"/></svg></button>
     </nav>
