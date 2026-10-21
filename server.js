@@ -25,14 +25,29 @@ app.get("/api/plugins", async (req, res) => {
     const stores = await fs.readdir(pluginsPath, { withFileTypes: true });
     const plugins = [];
     for (const store of stores.filter(entry => entry.isDirectory())) {
-      const pluginDirectories = [""];
+      const storeDirectory = path.join(pluginsPath, store.name);
+      let pluginDirectories;
       try {
-        const children = await fs.readdir(path.join(pluginsPath, store.name), { withFileTypes: true });
-        pluginDirectories.push(...children.filter(entry => entry.isDirectory() && !entry.name.startsWith(".")).map(entry => entry.name));
+        const storeManifest = JSON.parse(await fs.readFile(path.join(storeDirectory, "plugin.json"), "utf8"));
+        if (Array.isArray(storeManifest.plugins)) {
+          // A store manifest is an explicit index: each listed folder contains
+          // the actual plugin.json and its assets.
+          pluginDirectories = storeManifest.plugins.filter(folder =>
+            typeof folder === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(folder)
+          );
+        }
       } catch {}
+      if (!pluginDirectories) {
+        // Keep existing stores working while they migrate to an explicit index.
+        pluginDirectories = [""];
+        try {
+          const children = await fs.readdir(storeDirectory, { withFileTypes: true });
+          pluginDirectories.push(...children.filter(entry => entry.isDirectory() && !entry.name.startsWith(".")).map(entry => entry.name));
+        } catch {}
+      }
       for (const relativeDirectory of pluginDirectories) {
         try {
-          const directory = path.join(pluginsPath, store.name, relativeDirectory);
+          const directory = path.join(storeDirectory, relativeDirectory);
           const manifest = JSON.parse(await fs.readFile(path.join(directory, "plugin.json"), "utf8"));
           if (!/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(manifest.id || "") || typeof manifest.name !== "string") continue;
           const basePath = [store.name, relativeDirectory].filter(Boolean);

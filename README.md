@@ -74,7 +74,16 @@ sudo ./setup.sh --logs        # View live container logs
 
 Plugin stores are trusted Git repositories installed under `NightShift-data/plugins/` next to the NightShift checkout, so they survive source checkout updates. Run `setup.sh --plugins` to enter one or more Git URLs interactively, or pass `--plugin-url URL` (repeatable) for non-interactive setup. The spelling `--pluin-url` is also accepted. Run `setup.sh --plugins list` or `setup.sh --plugins ls` to list installed store names and Git origins. `--plugins` and `--update` fast-forward every installed store; locally changed stores are left untouched and cause the command to stop with an error. The container mounts that directory read-only. Existing stores in the old sibling `plugins/` directory are moved into `NightShift-data/plugins/` the next time a plugin command or update runs.
 
-The loader finds a plugin manifest at the store root or one directory below it. A store can therefore provide multiple plugins, each with its own `plugin.json` and assets. Example manifest:
+Each store has a root `plugin.json` index that lists the plugin folders it provides. Each listed folder contains the plugin's own `plugin.json` and assets. This lets a store organize and explicitly select which subdirectories are loaded. For example, the store root can contain:
+
+```json
+{
+  "name": "Example store",
+  "plugins": ["example-plugin", "another-plugin"]
+}
+```
+
+Then `example-plugin/plugin.json` contains that plugin's metadata and asset paths:
 
 ```json
 {
@@ -87,7 +96,7 @@ The loader finds a plugin manifest at the store root or one directory below it. 
 }
 ```
 
-The script and styles are optional. Plugins are enabled by default and can be disabled at `nightshift://plugins`; the selection is stored in the visitor's local browser storage. Plugin scripts run in the NightShift page with its browser permissions, so only use stores you trust. No plugin stores are configured by default yet.
+The script and styles are optional. Plugins are enabled by default and can be disabled at `nightshift://plugins`; the selection is stored in the visitor's local browser storage. Plugin scripts run in the NightShift page with its browser permissions, so only use stores you trust. For compatibility, stores without an index continue to be scanned for plugin manifests at the root and one directory below it. No plugin stores are configured by default yet.
 
 Remove a complete plugin store checkout by name. Omit the name to choose from an interactive list:
 
