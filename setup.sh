@@ -631,7 +631,7 @@ PORT=$((10#$PORT))
 
 COMPOSE=(docker compose --project-name nightshift --env-file "$ENV_FILE" -f "$SCRIPT_DIR/compose.yaml")
 
-plugin_directory="$SCRIPT_DIR/../plugins"
+plugin_directory="$SCRIPT_DIR/plugins"
 plugin_store_name() {
   local url="${1%/}"
   if [[ $url == *:* && $url != *://* ]]; then url="${url##*:}"; fi
