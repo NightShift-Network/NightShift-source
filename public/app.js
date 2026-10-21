@@ -35,6 +35,45 @@
   const HISTORY_KEY = "nightshift-browsing-history";
   const MAX_HISTORY_ENTRIES = 500;
   const PLUGIN_PREFERENCES_KEY = "nightshift-plugin-preferences";
+  const PLUGIN_SETTINGS_KEY = "nightshift-plugin-settings";
+  const pluginSettingsRenderers = new Map();
+  const pluginSettingsPanels = new Map();
+
+  function loadPluginSettings() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(PLUGIN_SETTINGS_KEY) || "{}");
+      return saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {};
+    } catch { return {}; }
+  }
+
+  function getPluginSettings(pluginId) {
+    const settings = loadPluginSettings()[pluginId];
+    return settings && typeof settings === "object" && !Array.isArray(settings) ? settings : {};
+  }
+
+  function savePluginSettings(pluginId, settings) {
+    if (!/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(pluginId) || !settings || typeof settings !== "object" || Array.isArray(settings)) return false;
+    try {
+      const allSettings = loadPluginSettings();
+      allSettings[pluginId] = JSON.parse(JSON.stringify(settings));
+      localStorage.setItem(PLUGIN_SETTINGS_KEY, JSON.stringify(allSettings));
+      return true;
+    } catch { return false; }
+  }
+
+  window.NightShiftPlugins = Object.freeze({
+    registerSettings(pluginId, renderer) {
+      if (!/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(pluginId) || typeof renderer !== "function") return false;
+      pluginSettingsRenderers.set(pluginId, renderer);
+      document.dispatchEvent(new CustomEvent("nightshift-plugin-settings-registered", { detail: { pluginId } }));
+      return true;
+    },
+    getSettings: getPluginSettings,
+    saveSettings: savePluginSettings,
+  });
+  document.addEventListener("nightshift-plugin-settings-registered", event => {
+    pluginSettingsPanels.get(event.detail?.pluginId)?.();
+  });
   const searchEngineSelect = document.querySelector("#search-engine");
   const browserTransportSelect = document.querySelector("#browser-transport");
   const syncXhrCheckbox = document.querySelector("#sync-xhr");
@@ -548,7 +587,16 @@
     if (internalSettings) populateSettings();
     internalPage.hidden = !internalRoute || internalNewTab || internalSettings;
     internalPage.classList.toggle("is-visible", !internalPage.hidden);
-    if (!internalPage.hidden) renderInternalPage(current.url.slice("nightshift://".length));
+    if (!internalPage.hidden) {
+      const page = current.url.slice("nightshift://".length);
+      // The main render function runs for unrelated tab and frame updates too.
+      // Rebuilding the page each time discarded an open plugin settings panel
+      // and installed another document-level registration listener.
+      if (page !== "plugins" || internalPage.dataset.renderedPage !== page) renderInternalPage(page);
+    } else {
+      delete internalPage.dataset.renderedPage;
+      pluginSettingsPanels.clear();
+    }
     homeView.classList.toggle("hidden", !internalNewTab);
     pageLoading.hidden = !(current?.url && !isInternalUrl(current.url) && current.loading);
     const currentUrl = current?.url || "";
@@ -705,6 +753,7 @@
   });
 
   function renderInternalPage(page) {
+    if (page !== "plugins") pluginSettingsPanels.clear();
     const headings = {
       history: ["History", "Search pages you’ve opened in this browser."],
       bookmarks: ["Bookmarks", "Your saved pages, stored in this browser."],
@@ -848,6 +897,53 @@
           label.append(toggle, document.createElement("span"));
           row.append(copy, label);
           list.append(row);
+
+          if (plugin.hasSettings) {
+            const settingsButton = document.createElement("button");
+            settingsButton.type = "button";
+            settingsButton.className = "settings-add";
+            settingsButton.textContent = "Settings";
+            settingsButton.setAttribute("aria-expanded", "false");
+            const settingsPanel = document.createElement("section");
+            settingsPanel.className = "plugin-settings-panel";
+            settingsPanel.hidden = true;
+            const settingsContent = document.createElement("div");
+            settingsPanel.append(settingsContent);
+            const renderSettings = () => {
+              settingsContent.replaceChildren();
+              const renderer = pluginSettingsRenderers.get(plugin.id);
+              if (!renderer) {
+                const message = document.createElement("p");
+                message.className = "internal-note";
+                message.textContent = "This plugin's settings are still loading. Try again in a moment.";
+                settingsContent.append(message);
+                return;
+              }
+              try {
+                renderer({
+                  container: settingsContent,
+                  settings: getPluginSettings(plugin.id),
+                  save: settings => savePluginSettings(plugin.id, settings),
+                });
+              } catch (error) {
+                const message = document.createElement("p");
+                message.className = "internal-note";
+                message.textContent = `Could not open plugin settings: ${error.message || error}`;
+                settingsContent.append(message);
+              }
+            };
+            settingsButton.addEventListener("click", () => {
+              settingsPanel.hidden = !settingsPanel.hidden;
+              settingsButton.setAttribute("aria-expanded", String(!settingsPanel.hidden));
+              if (!settingsPanel.hidden) renderSettings();
+            });
+            pluginSettingsPanels.set(plugin.id, () => {
+              if (internalPage.dataset.renderedPage === "plugins" && !settingsPanel.hidden) renderSettings();
+            });
+            if (!settingsPanel.hidden) renderSettings();
+            row.append(settingsButton);
+            list.append(settingsPanel);
+          }
         });
       }).catch(() => addNote("Could not load the installed plugin list."));
     } else if (page === "about") {
@@ -895,6 +991,7 @@
     }
     shell.append(list);
     internalPage.replaceChildren(shell);
+    internalPage.dataset.renderedPage = page;
   }
 
   function renderBookmarks() {

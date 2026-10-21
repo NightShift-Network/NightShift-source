@@ -98,6 +98,24 @@ Then `example-plugin/plugin.json` contains that plugin's metadata and asset path
 
 The script and styles are optional. Plugins are enabled by default and can be disabled at `nightshift://plugins`; the selection is stored in the visitor's local browser storage. Plugin scripts run in the NightShift page with its browser permissions, so only use stores you trust. For compatibility, stores without an index continue to be scanned for plugin manifests at the root and one directory below it. No plugin stores are configured by default yet.
 
+Plugins can provide a custom settings panel on `nightshift://plugins`. Set `"settings": true` in the plugin's `plugin.json`, then register a renderer from its script. The renderer receives a DOM container, the plugin's saved settings object, and a `save(settings)` function. Settings are stored in the visitor's browser under a namespace for that plugin ID.
+
+```js
+window.NightShiftPlugins.registerSettings("example-plugin", ({ container, settings, save }) => {
+  const label = document.createElement("label");
+  label.textContent = "Greeting";
+
+  const input = document.createElement("input");
+  input.value = settings.greeting || "Hello";
+  input.addEventListener("change", () => save({ ...settings, greeting: input.value }));
+
+  label.append(input);
+  container.append(label);
+});
+```
+
+Use `getSettings(pluginId)` and `saveSettings(pluginId, settings)` to access the same saved values elsewhere in a plugin. Build the panel with DOM APIs so plugin settings can contain any controls or layout the plugin needs. Plugin code runs with NightShift page permissions, so install only plugins you trust.
+
 Remove a complete plugin store checkout by name. Omit the name to choose from an interactive list:
 
 ```sh

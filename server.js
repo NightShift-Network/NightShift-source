@@ -60,6 +60,7 @@ app.get("/api/plugins", async (req, res) => {
             name: manifest.name.slice(0, 100),
             description: typeof manifest.description === "string" ? manifest.description.slice(0, 300) : "",
             version: typeof manifest.version === "string" ? manifest.version.slice(0, 40) : "",
+            hasSettings: manifest.settings === true,
             script: assetUrl(manifest.script),
             styles: Array.isArray(manifest.styles) ? manifest.styles.map(assetUrl).filter(Boolean) : [],
           });
