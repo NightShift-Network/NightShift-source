@@ -631,7 +631,21 @@ PORT=$((10#$PORT))
 
 COMPOSE=(docker compose --project-name nightshift --env-file "$ENV_FILE" -f "$SCRIPT_DIR/compose.yaml")
 
-plugin_directory="$SCRIPT_DIR/plugins"
+data_directory="$SCRIPT_DIR/../NightShift-data"
+plugin_directory="$data_directory/plugins"
+legacy_plugin_directory="$SCRIPT_DIR/../plugins"
+prepare_plugin_directory() {
+  if [[ -d $legacy_plugin_directory ]]; then
+    if [[ -e $plugin_directory ]]; then
+      echo "Both the legacy plugin directory and $plugin_directory exist; merge them manually before continuing." >&2
+      return 1
+    fi
+    mkdir -p "$data_directory"
+    mv -- "$legacy_plugin_directory" "$plugin_directory"
+    echo "Moved existing plugin stores to $plugin_directory."
+  fi
+  mkdir -p "$plugin_directory"
+}
 plugin_store_name() {
   local url="${1%/}"
   if [[ $url == *:* && $url != *://* ]]; then url="${url##*:}"; fi
@@ -666,7 +680,7 @@ install_plugin_store() {
 }
 update_plugin_stores() {
   command -v git >/dev/null || { echo "Git is not installed; cannot update plugin stores." >&2; return 1; }
-  mkdir -p "$plugin_directory"
+  prepare_plugin_directory
   local target
   for target in "$plugin_directory"/*; do
     [[ -d $target ]] || continue
@@ -722,6 +736,7 @@ case "$MODE" in
     ;;
   plugins)
     if [[ $PLUGIN_ACTION == list ]]; then
+      prepare_plugin_directory
       list_plugin_stores
       exit 0
     fi
@@ -734,13 +749,14 @@ case "$MODE" in
         PLUGIN_URLS+=("$plugin_url")
       done
     fi
-    mkdir -p "$plugin_directory"
+    prepare_plugin_directory
     for plugin_url in "${PLUGIN_URLS[@]}"; do install_plugin_store "$plugin_url"; done
     update_plugin_stores
     echo "Plugin stores are available in $plugin_directory. Reload NightShift in your browser to discover updated plugins."
     exit 0
     ;;
   remove_plugin)
+    prepare_plugin_directory
     plugin_stores=()
     if [[ -d $plugin_directory ]]; then
       for target in "$plugin_directory"/*; do

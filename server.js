@@ -9,7 +9,7 @@ import { server as wisp } from "@mercuryworkshop/wisp-js/server";
 const require = createRequire(import.meta.url);
 const packageDist = (name) => path.dirname(require.resolve(name));
 const app = express();
-const pluginsPath = path.resolve(process.env.NIGHTSHIFT_PLUGINS_DIR || path.join(process.cwd(), "plugins"));
+const pluginsPath = path.resolve(process.env.NIGHTSHIFT_PLUGINS_DIR || path.join(process.cwd(), "..", "NightShift-data", "plugins"));
 
 app.use((req, res, next) => {
   res.setHeader("Cross-Origin-Opener-Policy", "same-origin");

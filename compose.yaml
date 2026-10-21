@@ -11,4 +11,4 @@ services:
     ports:
       - "127.0.0.1:${NIGHTSHIFT_PORT:-3005}:3000"
     volumes:
-      - "./plugins:/app/plugins:ro"
+      - "../NightShift-data/plugins:/app/plugins:ro"
