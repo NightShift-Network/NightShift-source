@@ -87,6 +87,7 @@ Keep fonts self-hosted. `public/fonts.css` defines the DM Sans and DM Mono faces
 
 Use NightShift as the product name in user-facing branding where it reads naturally. Keep technical descriptions accurate about proxy behavior.
 In user-facing copy, refer to NightShift as a browser where it reads naturally.
+When explaining the separate source and production repositories, state that the production build minifies HTML and CSS and obfuscates frontend JavaScript to make it less recognizable to web filters that may block the proxy, while the source repository remains readable for development and contributions.
 
 ## Roadmap: Tor and Onion Support
 

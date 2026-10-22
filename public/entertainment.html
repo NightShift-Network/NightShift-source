@@ -84,6 +84,31 @@
   </style>
 </head>
 <body>
+  <script>
+    (() => {
+      try {
+        const pluginId = "nightshift-interface-customization";
+        const preferences = JSON.parse(localStorage.getItem("nightshift-plugin-preferences") || "{}");
+        if (preferences[pluginId] === false) return;
+        const allSettings = JSON.parse(localStorage.getItem("nightshift-plugin-settings") || "{}");
+        const theme = allSettings[pluginId]?.theme;
+        if (!["ocean", "violet", "ember"].includes(theme)) return;
+        document.body.dataset.nightshiftTheme = theme;
+        fetch("/api/plugins", { cache: "no-store" })
+          .then(response => response.ok ? response.json() : [])
+          .then(plugins => {
+            const plugin = plugins.find(item => item.id === pluginId);
+            const stylesheet = plugin?.styles?.find(href => href.endsWith("/plugin.css"));
+            if (!stylesheet) return;
+            const link = document.createElement("link");
+            link.rel = "stylesheet";
+            link.href = stylesheet;
+            document.head.append(link);
+          })
+          .catch(() => {});
+      } catch {}
+    })();
+  </script>
   <header class="topbar">
     <a class="brand" href="/" aria-label="NightShift home"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M15.7 2.4a9.6 9.6 0 1 0 5.9 16.8A11.1 11.1 0 0 1 15.7 2.4Z"/></svg></span><span>nightshift<span class="brand-dot">.</span></span></a>
     <span class="divider" aria-hidden="true"></span>
